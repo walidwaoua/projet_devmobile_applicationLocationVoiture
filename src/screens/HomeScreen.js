@@ -35,6 +35,27 @@ const FEATURES = [
   },
 ];
 
+const AGENCY_SERVICES = [
+  {
+    id: 'branding',
+    icon: 'cellphone-cog',
+    title: 'Application à vos couleurs',
+    description: 'Branding, écrans dédiés agences et parcours personnalisés pour vos équipes terrain.',
+  },
+  {
+    id: 'support',
+    icon: 'headset',
+    title: 'Support 7j/7',
+    description: 'Assistance client, notifications automatiques et centre d\'aide intégré pour vos conducteurs.',
+  },
+  {
+    id: 'analytics',
+    icon: 'chart-box',
+    title: 'Pilotage data-driven',
+    description: 'Rapports chiffrés, prévisions de disponibilité et suivi des KPI de vos agences locales.',
+  },
+];
+
 const RESERVATION_STEPS = [
   {
     id: 'search',
@@ -67,6 +88,7 @@ const HomeScreen = ({ onCatalogPress, onLoginPress }) => {
   const heroAnim = useRef(new Animated.Value(0)).current;
   const carsAnim = useRef(new Animated.Value(0)).current;
   const featuresAnim = useRef(new Animated.Value(0)).current;
+  const servicesAnim = useRef(new Animated.Value(0)).current;
   const stepsAnim = useRef(new Animated.Value(0)).current;
   const notesAnim = useRef(new Animated.Value(0)).current;
 
@@ -90,6 +112,12 @@ const HomeScreen = ({ onCatalogPress, onLoginPress }) => {
         easing: Easing.out(Easing.cubic),
         useNativeDriver: true,
       }),
+      Animated.timing(servicesAnim, {
+        toValue: 1,
+        duration: 500,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
       Animated.timing(stepsAnim, {
         toValue: 1,
         duration: 500,
@@ -103,7 +131,7 @@ const HomeScreen = ({ onCatalogPress, onLoginPress }) => {
         useNativeDriver: true,
       }),
     ]).start();
-  }, [heroAnim, carsAnim, featuresAnim, stepsAnim, notesAnim]);
+  }, [heroAnim, carsAnim, featuresAnim, servicesAnim, stepsAnim, notesAnim]);
 
   useEffect(() => {
     const unsubscribe = listenToCollection({
@@ -187,7 +215,7 @@ const HomeScreen = ({ onCatalogPress, onLoginPress }) => {
       <Animated.View style={[styles.hero, fadeUp(heroAnim)]}>
         <View style={styles.heroHeader}>
           <Text style={styles.heroBadge}>LOCATION PREMIUM</Text>
-          <Text style={styles.heroTitle}>Boostez votre agence de location</Text>
+          <Text style={styles.heroTitle}>LuxDrive </Text>
         </View>
         <Text style={styles.heroSubtitle}>
           Offrez à vos clients une expérience fluide pour découvrir, réserver et récupérer leurs véhicules,
@@ -261,6 +289,24 @@ const HomeScreen = ({ onCatalogPress, onLoginPress }) => {
               />
               <Text style={styles.cardTitle}>{feature.title}</Text>
               <Text style={styles.cardDescription}>{feature.description}</Text>
+            </View>
+          ))}
+        </View>
+      </Animated.View>
+
+      <Animated.View style={[styles.section, fadeUp(servicesAnim)]}>
+        <Text style={styles.sectionTitle}>Services pour votre agence</Text>
+        <View style={styles.cardsWrapper}>
+          {AGENCY_SERVICES.map((service) => (
+            <View key={service.id} style={[styles.card, styles.serviceCard]}>
+              <MaterialCommunityIcons
+                name={service.icon}
+                size={30}
+                color="#0F172A"
+                style={styles.cardIcon}
+              />
+              <Text style={styles.serviceTitle}>{service.title}</Text>
+              <Text style={styles.cardDescription}>{service.description}</Text>
             </View>
           ))}
         </View>
@@ -443,6 +489,9 @@ const styles = StyleSheet.create({
     padding: 18,
     gap: 10,
   },
+  serviceCard: {
+    backgroundColor: '#E0F2FE',
+  },
   cardIcon: {
     marginBottom: 4,
   },
@@ -450,6 +499,11 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     color: '#1E3A8A',
+  },
+  serviceTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#0F172A',
   },
   cardDescription: {
     color: '#334155',

@@ -1,11 +1,27 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 
-const Navbar = ({ title = 'Accueil', onMenuPress, onCatalogPress, onLoginPress }) => {
+const Navbar = ({
+  title = 'Accueil',
+  onMenuPress,
+  onCatalogPress,
+  onLoginPress,
+  showBack = false,
+  onBackPress,
+}) => {
   return (
     <View style={styles.container}>
-      <TouchableOpacity onPress={onMenuPress} style={styles.menuButton}>
-        <Text style={styles.menuText}>≡</Text>
+      <TouchableOpacity
+        onPress={showBack ? onBackPress : onMenuPress}
+        style={styles.menuButton}
+        activeOpacity={0.7}
+      >
+        {showBack ? (
+          <MaterialCommunityIcons name="arrow-left" size={24} color="#fff" />
+        ) : (
+          <MaterialCommunityIcons name="menu" size={26} color="#fff" />
+        )}
       </TouchableOpacity>
       <Text style={styles.title}>{title}</Text>
       <View style={styles.actions}>
@@ -39,10 +55,6 @@ const styles = StyleSheet.create({
     height: 40,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  menuText: {
-    fontSize: 24,
-    color: '#fff',
   },
   title: {
     flex: 1,
