@@ -1,17 +1,46 @@
-import React from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert } from 'react-native';
-
-// Mock data for users
-const users = [
-  { id: '1', name: 'John Doe', email: 'john@example.com', role: 'Customer', status: 'Active' },
-  { id: '2', name: 'Jane Smith', email: 'jane@example.com', role: 'Admin', status: 'Active' },
-  { id: '3', name: 'Bob Johnson', email: 'bob@example.com', role: 'Customer', status: 'Inactive' },
-  { id: '4', name: 'Alice Brown', email: 'alice@example.com', role: 'Customer', status: 'Active' },
-];
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import { listenToCollection, patchDocument, removeDocument } from '../src/services/firestore';
 
 const ManageUsers = () => {
-  const handleUserAction = (user, action) => {
-    Alert.alert(`${action} User`, `Perform ${action.toLowerCase()} for ${user.name}?`);
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const unsubscribe = listenToCollection({
+      collectionName: 'users',
+      orderByField: 'name',
+      onData: (data) => {
+        setUsers(data);
+        setLoading(false);
+      },
+      onError: (error) => {
+        console.error('Erreur Firestore (users):', error);
+        Alert.alert('Erreur', "Impossible de charger les utilisateurs.");
+        setLoading(false);
+      },
+    });
+
+    return unsubscribe;
+  }, []);
+
+  const handleUserAction = async (user, action) => {
+    try {
+      if (action === 'Edit') {
+        const nextStatus = user.status === 'Active' ? 'Suspended' : 'Active';
+        await patchDocument('users', user.id, {
+          status: nextStatus,
+          updatedAt: new Date().toISOString(),
+        });
+        Alert.alert('Status Updated', `${user.name} est maintenant ${nextStatus}.`);
+      } else if (action === 'Delete') {
+        await removeDocument('users', user.id);
+        Alert.alert('Deleted', `${user.name} a été supprimé.`);
+      }
+    } catch (error) {
+      console.error('Erreur action utilisateur:', error);
+      Alert.alert('Erreur', "Impossible d'exécuter l'action demandée.");
+    }
   };
 
   const renderItem = ({ item }) => (
@@ -42,12 +71,17 @@ const ManageUsers = () => {
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Manage Users</Text>
-      <FlatList
-        data={users}
-        renderItem={renderItem}
-        keyExtractor={item => item.id}
-        contentContainerStyle={styles.listContainer}
-      />
+      {loading ? (
+        <ActivityIndicator size="large" color="#1E3A8A" style={styles.loader} />
+      ) : (
+        <FlatList
+          data={users}
+          renderItem={renderItem}
+          keyExtractor={item => item.id}
+          contentContainerStyle={styles.listContainer}
+          ListEmptyComponent={<Text style={styles.emptyText}>Aucun utilisateur enregistré.</Text>}
+        />
+      )}
     </View>
   );
 };
@@ -111,6 +145,14 @@ const styles = StyleSheet.create({
   buttonText: {
     color: '#fff',
     fontWeight: 'bold',
+  },
+  loader: {
+    marginTop: 40,
+  },
+  emptyText: {
+    textAlign: 'center',
+    color: '#666',
+    marginTop: 40,
   },
 });
 

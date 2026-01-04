@@ -1,24 +1,61 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert } from 'react-native';
-
-// Mock data for cars
-const initialCars = [
-  { id: '1', model: 'Toyota Corolla', year: 2020, available: true },
-  { id: '2', model: 'Honda Civic', year: 2019, available: false },
-  { id: '3', model: 'Ford Focus', year: 2021, available: true },
-];
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import { createDocument, listenToCollection, patchDocument } from '../src/services/firestore';
 
 const ManageCars = () => {
-  const [cars, setCars] = useState(initialCars);
+  const [cars, setCars] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
-  const toggleAvailability = (id) => {
-    setCars(cars.map(car =>
-      car.id === id ? { ...car, available: !car.available } : car
-    ));
+  useEffect(() => {
+    const unsubscribe = listenToCollection({
+      collectionName: 'cars',
+      orderByField: 'model',
+      onData: (data) => {
+        setCars(data);
+        setLoading(false);
+      },
+      onError: (error) => {
+        console.error('Erreur Firestore (cars):', error);
+        Alert.alert('Erreur', "Impossible de charger les véhicules. Veuillez réessayer.");
+        setLoading(false);
+      },
+    });
+
+    return unsubscribe;
+  }, []);
+
+  const toggleAvailability = async (car) => {
+    try {
+      await patchDocument('cars', car.id, {
+        available: !car.available,
+        updatedAt: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error('Erreur mise à jour véhicule:', error);
+      Alert.alert('Erreur', "Impossible de modifier la disponibilité.");
+    }
   };
 
-  const addNewCar = () => {
-    Alert.alert('Add New Car', 'Functionality to add a new car will be implemented once database is set up.');
+  const addNewCar = async () => {
+    if (saving) {
+      return;
+    }
+
+    setSaving(true);
+    try {
+      await createDocument('cars', {
+        model: 'Nouveau modèle',
+        year: new Date().getFullYear(),
+        available: true,
+        createdAt: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error('Erreur ajout véhicule:', error);
+      Alert.alert('Erreur', "Impossible d'ajouter un véhicule pour le moment.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const renderItem = ({ item }) => (
@@ -29,7 +66,7 @@ const ManageCars = () => {
       </Text>
       <TouchableOpacity
         style={[styles.button, item.available ? styles.rentButton : styles.returnButton]}
-        onPress={() => toggleAvailability(item.id)}
+        onPress={() => toggleAvailability(item)}
       >
         <Text style={styles.buttonText}>
           {item.available ? 'Mark as Rented' : 'Mark as Available'}
@@ -42,14 +79,19 @@ const ManageCars = () => {
     <View style={styles.container}>
       <Text style={styles.title}>Manage Cars</Text>
       <TouchableOpacity style={styles.addButton} onPress={addNewCar}>
-        <Text style={styles.addButtonText}>+ Add New Car</Text>
+        <Text style={styles.addButtonText}>{saving ? 'Saving...' : '+ Add New Car'}</Text>
       </TouchableOpacity>
-      <FlatList
-        data={cars}
-        renderItem={renderItem}
-        keyExtractor={item => item.id}
-        contentContainerStyle={styles.listContainer}
-      />
+      {loading ? (
+        <ActivityIndicator size="large" color="#1E3A8A" style={styles.loader} />
+      ) : (
+        <FlatList
+          data={cars}
+          renderItem={renderItem}
+          keyExtractor={item => item.id}
+          contentContainerStyle={styles.listContainer}
+          ListEmptyComponent={<Text style={styles.emptyText}>Aucun véhicule enregistré.</Text>}
+        />
+      )}
     </View>
   );
 };
@@ -116,6 +158,14 @@ const styles = StyleSheet.create({
   buttonText: {
     color: '#fff',
     fontWeight: 'bold',
+  },
+  loader: {
+    marginTop: 40,
+  },
+  emptyText: {
+    textAlign: 'center',
+    color: '#666',
+    marginTop: 40,
   },
 });
 

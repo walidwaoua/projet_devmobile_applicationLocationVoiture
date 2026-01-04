@@ -1,58 +1,148 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
-
-// Mock data for reports
-const reportsData = {
-  totalRentals: 150,
-  activeRentals: 12,
-  totalRevenue: 45000,
-  popularCar: 'Toyota Corolla',
-  monthlyRentals: [
-    { month: 'Jan', count: 20 },
-    { month: 'Feb', count: 25 },
-    { month: 'Mar', count: 30 },
-    { month: 'Apr', count: 35 },
-    { month: 'May', count: 40 },
-  ],
-};
+import React, { useEffect, useMemo, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
+import { listenToCollection } from '../src/services/firestore';
 
 const Reports = () => {
+  const [rentals, setRentals] = useState([]);
+  const [cars, setCars] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let rentalsLoaded = false;
+    let carsLoaded = false;
+
+    const stopRentals = listenToCollection({
+      collectionName: 'rentals',
+      onData: (data) => {
+        setRentals(data);
+        rentalsLoaded = true;
+        setLoading(!(rentalsLoaded && carsLoaded));
+      },
+      onError: (error) => {
+        console.error('Erreur Firestore (rentals):', error);
+        rentalsLoaded = true;
+        setLoading(!(rentalsLoaded && carsLoaded));
+      },
+    });
+
+    const stopCars = listenToCollection({
+      collectionName: 'cars',
+      onData: (data) => {
+        setCars(data);
+        carsLoaded = true;
+        setLoading(!(rentalsLoaded && carsLoaded));
+      },
+      onError: (error) => {
+        console.error('Erreur Firestore (cars):', error);
+        carsLoaded = true;
+        setLoading(!(rentalsLoaded && carsLoaded));
+      },
+    });
+
+    return () => {
+      stopRentals?.();
+      stopCars?.();
+    };
+  }, []);
+
+  const report = useMemo(() => {
+    const totalRentals = rentals.length;
+    const activeRentals = rentals.filter((rental) => rental.status === 'Active').length;
+    const totalRevenue = rentals.reduce((acc, rental) => acc + (Number(rental.totalPrice) || 0), 0);
+
+    const carPopularity = rentals.reduce((acc, rental) => {
+      if (rental.carId) {
+        acc[rental.carId] = (acc[rental.carId] || 0) + 1;
+      }
+      return acc;
+    }, {});
+
+    let popularCar = 'Aucun véhicule';
+    if (Object.keys(carPopularity).length > 0) {
+      const [topCarId] = Object.entries(carPopularity).sort((a, b) => b[1] - a[1])[0];
+      const carInfo = cars.find((car) => car.id === topCarId);
+      popularCar = carInfo ? carInfo.model : 'Véhicule non trouvé';
+    }
+
+    const monthlyMap = rentals.reduce((acc, rental) => {
+      if (!rental.startDate) {
+        return acc;
+      }
+      const date = new Date(rental.startDate);
+      if (Number.isNaN(date.getTime())) {
+        return acc;
+      }
+      const key = `${date.getFullYear()}-${date.getMonth() + 1}`;
+      acc[key] = (acc[key] || 0) + 1;
+      return acc;
+    }, {});
+
+    const monthlyRentals = Object.entries(monthlyMap)
+      .sort((a, b) => (a[0] > b[0] ? 1 : -1))
+      .map(([key, count]) => {
+        const [year, month] = key.split('-');
+        const monthLabel = new Date(Number(year), Number(month) - 1).toLocaleString('fr-FR', {
+          month: 'short',
+          year: 'numeric',
+        });
+        return { month: monthLabel, count };
+      });
+
+    return {
+      totalRentals,
+      activeRentals,
+      totalRevenue,
+      popularCar,
+      monthlyRentals,
+    };
+  }, [rentals, cars]);
+
   return (
     <ScrollView style={styles.container}>
       <Text style={styles.title}>Reports & Analytics</Text>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Overview</Text>
-        <View style={styles.statContainer}>
-          <View style={styles.statBox}>
-            <Text style={styles.statNumber}>{reportsData.totalRentals}</Text>
-            <Text style={styles.statLabel}>Total Rentals</Text>
+      {loading ? (
+        <ActivityIndicator size="large" color="#1E3A8A" style={styles.loader} />
+      ) : (
+        <>
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Overview</Text>
+            <View style={styles.statContainer}>
+              <View style={styles.statBox}>
+                <Text style={styles.statNumber}>{report.totalRentals}</Text>
+                <Text style={styles.statLabel}>Total Rentals</Text>
+              </View>
+              <View style={styles.statBox}>
+                <Text style={styles.statNumber}>{report.activeRentals}</Text>
+                <Text style={styles.statLabel}>Active Rentals</Text>
+              </View>
+              <View style={styles.statBox}>
+                <Text style={styles.statNumber}>€{report.totalRevenue.toFixed(2)}</Text>
+                <Text style={styles.statLabel}>Total Revenue</Text>
+              </View>
+            </View>
           </View>
-          <View style={styles.statBox}>
-            <Text style={styles.statNumber}>{reportsData.activeRentals}</Text>
-            <Text style={styles.statLabel}>Active Rentals</Text>
-          </View>
-          <View style={styles.statBox}>
-            <Text style={styles.statNumber}>${reportsData.totalRevenue}</Text>
-            <Text style={styles.statLabel}>Total Revenue</Text>
-          </View>
-        </View>
-      </View>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Popular Car</Text>
-        <Text style={styles.popularCar}>{reportsData.popularCar}</Text>
-      </View>
-
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Monthly Rentals</Text>
-        {reportsData.monthlyRentals.map((item, index) => (
-          <View key={index} style={styles.monthlyItem}>
-            <Text style={styles.monthText}>{item.month}</Text>
-            <Text style={styles.countText}>{item.count} rentals</Text>
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Popular Car</Text>
+            <Text style={styles.popularCar}>{report.popularCar}</Text>
           </View>
-        ))}
-      </View>
+
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Monthly Rentals</Text>
+            {report.monthlyRentals.length === 0 ? (
+              <Text style={styles.emptyText}>Aucune location enregistrée.</Text>
+            ) : (
+              report.monthlyRentals.map((item, index) => (
+                <View key={index} style={styles.monthlyItem}>
+                  <Text style={styles.monthText}>{item.month}</Text>
+                  <Text style={styles.countText}>{item.count} locations</Text>
+                </View>
+              ))
+            )}
+          </View>
+        </>
+      )}
     </ScrollView>
   );
 };
@@ -122,6 +212,14 @@ const styles = StyleSheet.create({
   countText: {
     fontSize: 16,
     color: '#666',
+  },
+  loader: {
+    marginTop: 40,
+  },
+  emptyText: {
+    textAlign: 'center',
+    color: '#666',
+    marginTop: 20,
   },
 });
 

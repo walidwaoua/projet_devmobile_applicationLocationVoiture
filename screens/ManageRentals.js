@@ -1,31 +1,51 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert } from 'react-native';
-
-// Mock data for rentals
-const initialRentals = [
-  { id: '1', customer: 'John Doe', car: 'Toyota Corolla', startDate: '2023-10-01', endDate: '2023-10-05', status: 'Active' },
-  { id: '2', customer: 'Jane Smith', car: 'Honda Civic', startDate: '2023-09-15', endDate: '2023-09-20', status: 'Completed' },
-  { id: '3', customer: 'Bob Johnson', car: 'Ford Focus', startDate: '2023-10-10', endDate: '2023-10-15', status: 'Pending' },
-  { id: '4', customer: 'Alice Brown', car: 'BMW X3', startDate: '2023-10-12', endDate: '2023-10-18', status: 'Pending' },
-];
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import { listenToCollection, patchDocument, removeDocument } from '../src/services/firestore';
 
 const ManageRentals = () => {
-  const [rentals, setRentals] = useState(initialRentals);
+  const [rentals, setRentals] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  const handleRentalAction = (rental, action) => {
-    if (action === 'Approve') {
-      setRentals(rentals.map(r =>
-        r.id === rental.id ? { ...r, status: 'Active' } : r
-      ));
-      Alert.alert('Approved', `Rental for ${rental.customer} has been approved.`);
-    } else if (action === 'Deny') {
-      setRentals(rentals.filter(r => r.id !== rental.id));
-      Alert.alert('Denied', `Rental for ${rental.customer} has been denied and removed.`);
-    } else if (action === 'Complete') {
-      setRentals(rentals.map(r =>
-        r.id === rental.id ? { ...r, status: 'Completed' } : r
-      ));
-      Alert.alert('Completed', `Rental for ${rental.customer} has been marked as completed.`);
+  useEffect(() => {
+    const unsubscribe = listenToCollection({
+      collectionName: 'rentals',
+      orderByField: 'startDate',
+      orderDirection: 'desc',
+      onData: (data) => {
+        setRentals(data);
+        setLoading(false);
+      },
+      onError: (error) => {
+        console.error('Erreur Firestore (rentals):', error);
+        Alert.alert('Erreur', "Impossible de charger les réservations.");
+        setLoading(false);
+      },
+    });
+
+    return unsubscribe;
+  }, []);
+
+  const handleRentalAction = async (rental, action) => {
+    try {
+      if (action === 'Approve') {
+        await patchDocument('rentals', rental.id, {
+          status: 'Active',
+          approvedAt: new Date().toISOString(),
+        });
+        Alert.alert('Approved', `Rental for ${rental.customer} has been approved.`);
+      } else if (action === 'Deny') {
+        await removeDocument('rentals', rental.id);
+        Alert.alert('Denied', `Rental for ${rental.customer} has been denied and removed.`);
+      } else if (action === 'Complete') {
+        await patchDocument('rentals', rental.id, {
+          status: 'Completed',
+          completedAt: new Date().toISOString(),
+        });
+        Alert.alert('Completed', `Rental for ${rental.customer} has been marked as completed.`);
+      }
+    } catch (error) {
+      console.error('Erreur traitement location:', error);
+      Alert.alert('Erreur', "L'action demandée a échoué. Réessayez plus tard.");
     }
   };
 
@@ -67,12 +87,17 @@ const ManageRentals = () => {
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Manage Rentals</Text>
-      <FlatList
-        data={rentals}
-        renderItem={renderItem}
-        keyExtractor={item => item.id}
-        contentContainerStyle={styles.listContainer}
-      />
+      {loading ? (
+        <ActivityIndicator size="large" color="#1E3A8A" style={styles.loader} />
+      ) : (
+        <FlatList
+          data={rentals}
+          renderItem={renderItem}
+          keyExtractor={item => item.id}
+          contentContainerStyle={styles.listContainer}
+          ListEmptyComponent={<Text style={styles.emptyText}>Aucune réservation trouvée.</Text>}
+        />
+      )}
     </View>
   );
 };
@@ -144,6 +169,14 @@ const styles = StyleSheet.create({
   buttonText: {
     color: '#fff',
     fontWeight: 'bold',
+  },
+  loader: {
+    marginTop: 40,
+  },
+  emptyText: {
+    textAlign: 'center',
+    color: '#666',
+    marginTop: 40,
   },
 });
 
