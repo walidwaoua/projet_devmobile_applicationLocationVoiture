@@ -4,14 +4,14 @@ import {
   Animated,
   Easing,
   FlatList,
+  Pressable,
   StyleSheet,
   Text,
-  TouchableOpacity,
   View,
 } from 'react-native';
 import { listenToCollection } from '../services/firestore';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-const AnimatedTouchable = Animated.createAnimatedComponent(TouchableOpacity);
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 const CATEGORIES = [
   { id: 'suv', label: 'SUV', icon: 'car-estate' },
@@ -126,33 +126,31 @@ const CatalogScreen = ({ onReserve, onLoginPress }) => {
           {
             scale: value.interpolate({
               inputRange: [0, 1],
-              outputRange: [0.96, 1.08],
+              outputRange: [1, 1.04],
             }),
           },
         ],
         backgroundColor: value.interpolate({
           inputRange: [0, 1],
-          outputRange: ['rgba(30,41,59,0.45)', '#F59E0B'],
+          outputRange: ['rgba(15,23,42,0.45)', 'rgba(59,130,246,0.18)'],
         }),
         borderColor: value.interpolate({
           inputRange: [0, 1],
-          outputRange: ['rgba(148,163,184,0.4)', 'rgba(245,158,11,0.85)'],
+          outputRange: ['rgba(148,163,184,0.35)', 'rgba(96,165,250,0.9)'],
         }),
         shadowOpacity: value.interpolate({
           inputRange: [0, 1],
-          outputRange: [0, 0.35],
+          outputRange: [0, 0.2],
         }),
         shadowRadius: value.interpolate({
           inputRange: [0, 1],
-          outputRange: [0, 14],
+          outputRange: [0, 10],
         }),
-        shadowOffset: {
-          width: 0,
-          height: 8,
-        },
+        shadowColor: 'rgba(96,165,250,0.8)',
+        shadowOffset: { width: 0, height: 6 },
         elevation: value.interpolate({
           inputRange: [0, 1],
-          outputRange: [0, 6],
+          outputRange: [0, 4],
         }),
       },
     ];
@@ -261,18 +259,17 @@ const CatalogScreen = ({ onReserve, onLoginPress }) => {
           const isActive = item.id === activeCategory;
           const chipStyle = buildChipStyle(item.id);
           return (
-            <AnimatedTouchable
+            <AnimatedPressable
               onPress={() => setActiveCategory(item.id)}
               style={chipStyle}
-              activeOpacity={0.8}
             >
               <MaterialCommunityIcons
                 name={item.icon}
                 size={18}
-                color={isActive ? '#0F172A' : '#94A3B8'}
+                color={isActive ? '#60A5FA' : '#CBD5F5'}
               />
               <Text style={[styles.categoryText, isActive && styles.categoryTextActive]}>{item.label}</Text>
-            </AnimatedTouchable>
+            </AnimatedPressable>
           );
         }}
       />
@@ -335,20 +332,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     borderRadius: 999,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    backgroundColor: 'rgba(30,41,59,0.45)',
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    backgroundColor: 'rgba(15,23,42,0.45)',
     borderWidth: 1,
     borderColor: 'rgba(148,163,184,0.35)',
+    overflow: 'hidden',
   },
   categoryText: {
-    color: '#CBD5F5',
+    color: '#E2E8F0',
     fontWeight: '600',
     fontSize: 14,
     textTransform: 'uppercase',
   },
   categoryTextActive: {
-    color: '#0F172A',
+    color: '#60A5FA',
   },
   loader: {
     marginTop: 40,
