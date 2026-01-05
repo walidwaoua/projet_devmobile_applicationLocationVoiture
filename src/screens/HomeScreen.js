@@ -40,7 +40,7 @@ const AGENCY_SERVICES = [
     id: 'branding',
     icon: 'cellphone-cog',
     title: 'Application à vos couleurs',
-    description: 'Branding, écrans dédiés agences et parcours personnalisés pour vos équipes terrain.',
+    description: 'Branding aligné sur votre agence et parcours personnalisés pour votre équipe terrain.',
   },
   {
     id: 'support',
@@ -52,7 +52,7 @@ const AGENCY_SERVICES = [
     id: 'analytics',
     icon: 'chart-box',
     title: 'Pilotage data-driven',
-    description: 'Rapports chiffrés, prévisions de disponibilité et suivi des KPI de vos agences locales.',
+    description: 'Rapports chiffrés, prévisions de disponibilité et suivi des KPI de votre agence.',
   },
 ];
 
@@ -241,9 +241,6 @@ const HomeScreen = ({ navigation }) => {
               Un aperçu des modèles disponibles dans votre catalogue. Ajoutez des images et des prix depuis le back-office.
             </Text>
           </View>
-          <TouchableOpacity onPress={onCatalogPress}>
-            <Text style={styles.link}>Tout afficher</Text>
-          </TouchableOpacity>
         </View>
         {loadingCars ? (
           <ActivityIndicator size="small" color="#1E3A8A" style={styles.inlineLoader} />
