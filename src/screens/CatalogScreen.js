@@ -5,6 +5,7 @@ import {
   Easing,
   FlatList,
   Pressable,
+  TouchableOpacity,
   StyleSheet,
   Text,
   View,
@@ -14,6 +15,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 const CATEGORIES = [
+  { id: 'all', label: 'Afficher tout', icon: 'view-dashboard-outline' },
   { id: 'suv', label: 'SUV', icon: 'car-estate' },
   { id: 'citadine', label: 'Citadine', icon: 'car-hatchback' },
   { id: 'compacte', label: 'Compacte', icon: 'car-side' },
@@ -75,8 +77,11 @@ const CatalogScreen = ({ onReserve, onLoginPress }) => {
   }, [cars]);
 
   const filteredCars = useMemo(() => {
+    if (activeCategory === 'all') {
+      return cars;
+    }
     return catalogByCategory[activeCategory] ?? [];
-  }, [catalogByCategory, activeCategory]);
+  }, [catalogByCategory, activeCategory, cars]);
 
   useEffect(() => {
     Animated.parallel([
@@ -126,25 +131,25 @@ const CatalogScreen = ({ onReserve, onLoginPress }) => {
           {
             scale: value.interpolate({
               inputRange: [0, 1],
-              outputRange: [1, 1.04],
+              outputRange: [1, 1.03],
             }),
           },
         ],
         backgroundColor: value.interpolate({
           inputRange: [0, 1],
-          outputRange: ['rgba(15,23,42,0.45)', 'rgba(59,130,246,0.18)'],
+          outputRange: ['rgba(15,23,42,0.38)', 'rgba(59,130,246,0.12)'],
         }),
         borderColor: value.interpolate({
           inputRange: [0, 1],
-          outputRange: ['rgba(148,163,184,0.35)', 'rgba(96,165,250,0.9)'],
+          outputRange: ['rgba(148,163,184,0.35)', 'rgba(96,165,250,1)'],
         }),
         shadowOpacity: value.interpolate({
           inputRange: [0, 1],
-          outputRange: [0, 0.2],
+          outputRange: [0, 0.25],
         }),
         shadowRadius: value.interpolate({
           inputRange: [0, 1],
-          outputRange: [0, 10],
+          outputRange: [0, 12],
         }),
         shadowColor: 'rgba(96,165,250,0.8)',
         shadowOffset: { width: 0, height: 6 },
@@ -263,11 +268,13 @@ const CatalogScreen = ({ onReserve, onLoginPress }) => {
               onPress={() => setActiveCategory(item.id)}
               style={chipStyle}
             >
-              <MaterialCommunityIcons
-                name={item.icon}
-                size={18}
-                color={isActive ? '#60A5FA' : '#CBD5F5'}
-              />
+              <View style={[styles.categoryIconWrap, isActive && styles.categoryIconWrapActive]}>
+                <MaterialCommunityIcons
+                  name={item.icon}
+                  size={16}
+                  color={isActive ? '#60A5FA' : '#CBD5F5'}
+                />
+              </View>
               <Text style={[styles.categoryText, isActive && styles.categoryTextActive]}>{item.label}</Text>
             </AnimatedPressable>
           );
@@ -328,22 +335,39 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   categoryChip: {
-    flexDirection: 'row',
+    width: 88,
+    flexDirection: 'column',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
     borderRadius: 999,
-    paddingHorizontal: 18,
+    paddingHorizontal: 14,
     paddingVertical: 12,
-    backgroundColor: 'rgba(15,23,42,0.45)',
+    backgroundColor: 'rgba(15,23,42,0.38)',
     borderWidth: 1,
     borderColor: 'rgba(148,163,184,0.35)',
     overflow: 'hidden',
   },
+  categoryIconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    borderWidth: 1,
+    borderColor: 'rgba(148,163,184,0.45)',
+    backgroundColor: 'rgba(15,23,42,0.6)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  categoryIconWrapActive: {
+    borderColor: 'rgba(96,165,250,0.9)',
+    backgroundColor: 'rgba(37,99,235,0.18)',
+  },
   categoryText: {
     color: '#E2E8F0',
     fontWeight: '600',
-    fontSize: 14,
+    fontSize: 11,
+    textAlign: 'center',
     textTransform: 'uppercase',
+    lineHeight: 14,
   },
   categoryTextActive: {
     color: '#60A5FA',

@@ -40,7 +40,7 @@ const AGENCY_SERVICES = [
     id: 'branding',
     icon: 'cellphone-cog',
     title: 'Application à vos couleurs',
-    description: 'Branding, écrans dédiés agences et parcours personnalisés pour vos équipes terrain.',
+    description: 'Branding aligné sur votre agence et parcours personnalisés pour votre équipe terrain.',
   },
   {
     id: 'support',
@@ -52,7 +52,7 @@ const AGENCY_SERVICES = [
     id: 'analytics',
     icon: 'chart-box',
     title: 'Pilotage data-driven',
-    description: 'Rapports chiffrés, prévisions de disponibilité et suivi des KPI de vos agences locales.',
+    description: 'Rapports chiffrés, prévisions de disponibilité et suivi des KPI de votre agence.',
   },
 ];
 
@@ -77,7 +77,7 @@ const RESERVATION_STEPS = [
   },
 ];
 
-const HomeScreen = ({ onCatalogPress, onLoginPress }) => {
+const HomeScreen = ({ onCatalogPress, onLoginPress, onAdminPress }) => {
   const [text, setText] = useState('');
   const [items, setItems] = useState([]);
   const [loadingNotes, setLoadingNotes] = useState(true);
@@ -228,6 +228,9 @@ const HomeScreen = ({ onCatalogPress, onLoginPress }) => {
           <TouchableOpacity style={styles.heroSecondary} onPress={onLoginPress}>
             <Text style={styles.heroSecondaryText}>Se connecter</Text>
           </TouchableOpacity>
+          <TouchableOpacity style={styles.heroAdminTest} onPress={() => onAdminPress?.()}>
+            <Text style={styles.heroAdminTestText}>Admin (test)</Text>
+          </TouchableOpacity>
         </View>
       </Animated.View>
 
@@ -239,9 +242,6 @@ const HomeScreen = ({ onCatalogPress, onLoginPress }) => {
               Un aperçu des modèles disponibles dans votre catalogue. Ajoutez des images et des prix depuis le back-office.
             </Text>
           </View>
-          <TouchableOpacity onPress={onCatalogPress}>
-            <Text style={styles.link}>Tout afficher</Text>
-          </TouchableOpacity>
         </View>
         {loadingCars ? (
           <ActivityIndicator size="small" color="#1E3A8A" style={styles.inlineLoader} />
@@ -448,6 +448,19 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: '600',
     fontSize: 15,
+  },
+  heroAdminTest: {
+    borderRadius: 999,
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.35)',
+    backgroundColor: 'rgba(15,23,42,0.35)',
+  },
+  heroAdminTestText: {
+    color: 'rgba(255,255,255,0.85)',
+    fontWeight: '600',
+    fontSize: 14,
   },
   section: {
     backgroundColor: '#fff',
