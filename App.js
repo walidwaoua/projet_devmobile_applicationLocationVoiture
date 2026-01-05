@@ -1,74 +1,68 @@
-import React, { useMemo, useState } from 'react';
+import React from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { Alert, StyleSheet } from 'react-native';
-import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
-import Navbar from './src/components/Navbar';
+import { StyleSheet } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { NavigationContainer } from '@react-navigation/native';
+import { createStackNavigator } from '@react-navigation/stack';
+
+// Screens
 import HomeScreen from './src/screens/HomeScreen';
 import CatalogScreen from './src/screens/CatalogScreen';
+import LoginScreen from './screens/LoginScreen';
+import AdminDashboard from './screens/AdminDashboard';
+import ManageCars from './screens/ManageCars';
+import ManageRentals from './screens/ManageRentals';
+import ManageUsers from './screens/ManageUsers';
+import Reports from './screens/Reports';
+
+const Stack = createStackNavigator();
 
 export default function App() {
-  const [activeScreen, setActiveScreen] = useState('home');
-
-  const handleCatalogPress = () => {
-    setActiveScreen('catalog');
-  };
-
-  const handleLoginPress = () => {
-    Alert.alert('Connexion', 'Espace de connexion en cours de préparation.');
-  };
-
-  const handleBackHome = () => {
-    setActiveScreen('home');
-  };
-
-  const handleMenuPress = () => {
-    if (activeScreen !== 'home') {
-      setActiveScreen('home');
-    } else {
-      Alert.alert('Menu', 'Le menu latéral sera disponible prochainement.');
-    }
-  };
-
-  const handleReserve = (car) => {
-    const label = car?.model ? car.model : 'ce véhicule';
-    Alert.alert('Réservation', `La réservation pour ${label} sera disponible bientôt.`);
-  };
-
-  const showBack = activeScreen !== 'home';
-
-  const navbarTitle = useMemo(() => {
-    switch (activeScreen) {
-      case 'catalog':
-        return 'Catalogue';
-      default:
-        return 'Accueil';
-    }
-  }, [activeScreen]);
-
   return (
     <SafeAreaProvider>
-      <SafeAreaView style={styles.root}>
-        <Navbar
-          title={navbarTitle}
-          onMenuPress={handleMenuPress}
-          onCatalogPress={handleCatalogPress}
-          onLoginPress={handleLoginPress}
-          showBack={showBack}
-          onBackPress={handleBackHome}
-        />
-        {activeScreen === 'home' ? (
-          <HomeScreen
-            onCatalogPress={handleCatalogPress}
-            onLoginPress={handleLoginPress}
+      <NavigationContainer>
+        <Stack.Navigator
+          initialRouteName="Home"
+          screenOptions={{
+            headerStyle: {
+              backgroundColor: '#1E3A8A',
+            },
+            headerTintColor: '#fff',
+            headerTitleStyle: {
+              fontWeight: 'bold',
+            },
+            contentStyle: { backgroundColor: '#fff' }
+          }}
+        >
+          <Stack.Screen
+            name="Home"
+            component={HomeScreen}
+            options={{ headerShown: false }}
           />
-        ) : (
-          <CatalogScreen
-            onReserve={handleReserve}
-            onLoginPress={handleLoginPress}
+          <Stack.Screen
+            name="Catalog"
+            component={CatalogScreen}
+            options={{ title: 'Catalogue' }}
           />
-        )}
-        <StatusBar style="light" />
-      </SafeAreaView>
+          <Stack.Screen
+            name="Login"
+            component={LoginScreen}
+            options={{ headerShown: false }}
+          />
+
+          {/* Admin Routes */}
+          <Stack.Screen
+            name="AdminDashboard"
+            component={AdminDashboard}
+            options={{ title: 'Tableau de bord Admin', headerLeft: null, gestureEnabled: false }}
+          />
+          <Stack.Screen name="ManageCars" component={ManageCars} options={{ title: 'Gérer les véhicules' }} />
+          <Stack.Screen name="ManageRentals" component={ManageRentals} options={{ title: 'Gérer les locations' }} />
+          <Stack.Screen name="ManageUsers" component={ManageUsers} options={{ title: 'Gérer les utilisateurs' }} />
+          <Stack.Screen name="Reports" component={Reports} options={{ title: 'Rapports' }} />
+        </Stack.Navigator>
+      </NavigationContainer>
+      <StatusBar style="light" />
     </SafeAreaProvider>
   );
 }

@@ -29,7 +29,8 @@ const normalizeCategory = (value) => {
   return String(value).trim().toLowerCase();
 };
 
-const CatalogScreen = ({ onReserve, onLoginPress }) => {
+const CatalogScreen = ({ navigation, onReserve }) => {
+  const onLoginPress = () => navigation.navigate('Login');
   const [activeCategory, setActiveCategory] = useState(CATEGORIES[0].id);
   const [cars, setCars] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -277,7 +278,7 @@ const CatalogScreen = ({ onReserve, onLoginPress }) => {
       {loading ? (
         <ActivityIndicator size="large" color="#60A5FA" style={styles.loader} />
       ) : filteredCars.length === 0 ? (
-        <Animated.View style={[styles.emptyState, { opacity: listOpacity }]}> 
+        <Animated.View style={[styles.emptyState, { opacity: listOpacity }]}>
           <MaterialCommunityIcons name="car-off" size={48} color="#94A3B8" />
           <Text style={styles.emptyTitle}>Aucun véhicule dans cette catégorie</Text>
           <Text style={styles.emptySubtitle}>

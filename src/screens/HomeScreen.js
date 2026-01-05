@@ -77,7 +77,9 @@ const RESERVATION_STEPS = [
   },
 ];
 
-const HomeScreen = ({ onCatalogPress, onLoginPress }) => {
+const HomeScreen = ({ navigation }) => {
+  const onCatalogPress = () => navigation.navigate('Catalog');
+  const onLoginPress = () => navigation.navigate('Login');
   const [text, setText] = useState('');
   const [items, setItems] = useState([]);
   const [loadingNotes, setLoadingNotes] = useState(true);
