@@ -9,6 +9,7 @@ const Navbar = ({
   onLoginPress,
   showBack = false,
   onBackPress,
+  navigation,
 }) => {
   return (
     <View style={styles.container}>
@@ -25,7 +26,10 @@ const Navbar = ({
       </TouchableOpacity>
       <Text style={styles.title}>{title}</Text>
       <View style={styles.actions}>
-        <TouchableOpacity style={styles.linkButton} onPress={onCatalogPress}>
+        <TouchableOpacity
+          style={styles.linkButton}
+          onPress={navigation?.navigate ? () => navigation.navigate('Catalog') : onCatalogPress}
+        >
           <Text style={styles.linkText}>Catalogue</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.linkButton, styles.loginButton]} onPress={onLoginPress}>

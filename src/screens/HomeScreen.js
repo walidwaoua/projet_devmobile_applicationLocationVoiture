@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
+  Alert,
   Button,
   FlatList,
   StyleSheet,
@@ -13,6 +14,8 @@ import {
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { createDocument, listenToCollection, removeDocument } from '../services/firestore';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import Navbar from '../components/Navbar';
 
 const FEATURES = [
   {
@@ -80,6 +83,7 @@ const RESERVATION_STEPS = [
 const HomeScreen = ({ navigation }) => {
   const onCatalogPress = () => navigation.navigate('Catalog');
   const onLoginPress = () => navigation.navigate('Login');
+  const onMenuPress = () => Alert.alert('Menu', 'Le menu latéral sera disponible prochainement.');
   const [text, setText] = useState('');
   const [items, setItems] = useState([]);
   const [loadingNotes, setLoadingNotes] = useState(true);
@@ -210,10 +214,20 @@ const HomeScreen = ({ navigation }) => {
   });
 
   return (
-    <Animated.ScrollView
-      contentContainerStyle={styles.container}
-      showsVerticalScrollIndicator={false}
-    >
+    <SafeAreaView style={styles.screen} edges={['top']}>
+      <Navbar
+        title="Accueil"
+        onMenuPress={onMenuPress}
+        onCatalogPress={onCatalogPress}
+        onLoginPress={onLoginPress}
+        showBack={false}
+        navigation={navigation}
+      />
+      <Animated.ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.container}
+        showsVerticalScrollIndicator={false}
+      >
       <Animated.View style={[styles.hero, fadeUp(heroAnim)]}>
         <View style={styles.heroHeader}>
           <Text style={styles.heroBadge}>LOCATION PREMIUM</Text>
@@ -373,11 +387,19 @@ const HomeScreen = ({ navigation }) => {
           />
         )}
       </Animated.View>
-    </Animated.ScrollView>
+      </Animated.ScrollView>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+    backgroundColor: '#0F172A',
+  },
+  scroll: {
+    flex: 1,
+  },
   container: {
     paddingVertical: 28,
     paddingHorizontal: 20,

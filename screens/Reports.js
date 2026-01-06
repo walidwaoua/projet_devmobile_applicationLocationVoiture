@@ -1,8 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import AdminNavbar from '../src/components/AdminNavbar';
 import { listenToCollection } from '../src/services/firestore';
 
-const Reports = () => {
+const Reports = ({ navigation }) => {
   const [rentals, setRentals] = useState([]);
   const [cars, setCars] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -97,61 +99,77 @@ const Reports = () => {
     };
   }, [rentals, cars]);
 
-  return (
-    <ScrollView style={styles.container}>
-      <Text style={styles.title}>Reports & Analytics</Text>
+  const handleNavigate = (screen) => {
+    navigation?.navigate?.(screen);
+  };
 
-      {loading ? (
-        <ActivityIndicator size="large" color="#1E3A8A" style={styles.loader} />
-      ) : (
-        <>
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Overview</Text>
-            <View style={styles.statContainer}>
-              <View style={styles.statBox}>
-                <Text style={styles.statNumber}>{report.totalRentals}</Text>
-                <Text style={styles.statLabel}>Total Rentals</Text>
-              </View>
-              <View style={styles.statBox}>
-                <Text style={styles.statNumber}>{report.activeRentals}</Text>
-                <Text style={styles.statLabel}>Active Rentals</Text>
-              </View>
-              <View style={styles.statBox}>
-                <Text style={styles.statNumber}>€{report.totalRevenue.toFixed(2)}</Text>
-                <Text style={styles.statLabel}>Total Revenue</Text>
+  return (
+    <SafeAreaView style={styles.screen} edges={['top']}>
+      <AdminNavbar activeScreen="Reports" onNavigate={handleNavigate} />
+      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+        <Text style={styles.title}>Reports & Analytics</Text>
+
+        {loading ? (
+          <ActivityIndicator size="large" color="#1E3A8A" style={styles.loader} />
+        ) : (
+          <>
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Overview</Text>
+              <View style={styles.statContainer}>
+                <View style={styles.statBox}>
+                  <Text style={styles.statNumber}>{report.totalRentals}</Text>
+                  <Text style={styles.statLabel}>Total Rentals</Text>
+                </View>
+                <View style={styles.statBox}>
+                  <Text style={styles.statNumber}>{report.activeRentals}</Text>
+                  <Text style={styles.statLabel}>Active Rentals</Text>
+                </View>
+                <View style={styles.statBox}>
+                  <Text style={styles.statNumber}>€{report.totalRevenue.toFixed(2)}</Text>
+                  <Text style={styles.statLabel}>Total Revenue</Text>
+                </View>
               </View>
             </View>
-          </View>
 
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Popular Car</Text>
-            <Text style={styles.popularCar}>{report.popularCar}</Text>
-          </View>
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Popular Car</Text>
+              <Text style={styles.popularCar}>{report.popularCar}</Text>
+            </View>
 
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Monthly Rentals</Text>
-            {report.monthlyRentals.length === 0 ? (
-              <Text style={styles.emptyText}>Aucune location enregistrée.</Text>
-            ) : (
-              report.monthlyRentals.map((item, index) => (
-                <View key={index} style={styles.monthlyItem}>
-                  <Text style={styles.monthText}>{item.month}</Text>
-                  <Text style={styles.countText}>{item.count} locations</Text>
-                </View>
-              ))
-            )}
-          </View>
-        </>
-      )}
-    </ScrollView>
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Monthly Rentals</Text>
+              {report.monthlyRentals.length === 0 ? (
+                <Text style={styles.emptyText}>Aucune location enregistrée.</Text>
+              ) : (
+                report.monthlyRentals.map((item, index) => (
+                  <View key={index} style={styles.monthlyItem}>
+                    <Text style={styles.monthText}>{item.month}</Text>
+                    <Text style={styles.countText}>{item.count} locations</Text>
+                  </View>
+                ))
+              )}
+            </View>
+          </>
+        )}
+      </ScrollView>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+    backgroundColor: '#0F172A',
+  },
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
-    paddingTop: 50,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+  },
+  content: {
+    paddingTop: 32,
+    paddingBottom: 40,
   },
   title: {
     fontSize: 24,

@@ -58,15 +58,31 @@ export default function App() {
           />
 
           {/* Admin Routes */}
-          <Stack.Screen
-            name="AdminDashboard"
-            component={AdminDashboard}
-            options={{ title: 'Tableau de bord Admin', headerLeft: null, gestureEnabled: false }}
-          />
-          <Stack.Screen name="ManageCars" component={ManageCars} options={{ title: 'Gérer les véhicules' }} />
-          <Stack.Screen name="ManageRentals" component={ManageRentals} options={{ title: 'Gérer les locations' }} />
-          <Stack.Screen name="ManageUsers" component={ManageUsers} options={{ title: 'Gérer les utilisateurs' }} />
-          <Stack.Screen name="Reports" component={Reports} options={{ title: 'Rapports' }} />
+            <Stack.Screen
+              name="AdminDashboard"
+              component={AdminDashboard}
+              options={{ headerShown: false, gestureEnabled: false }}
+            />
+            <Stack.Screen
+              name="ManageCars"
+              component={ManageCars}
+              options={{ headerShown: false, gestureEnabled: false }}
+            />
+            <Stack.Screen
+              name="ManageRentals"
+              component={ManageRentals}
+              options={{ headerShown: false, gestureEnabled: false }}
+            />
+            <Stack.Screen
+              name="ManageUsers"
+              component={ManageUsers}
+              options={{ headerShown: false, gestureEnabled: false }}
+            />
+            <Stack.Screen
+              name="Reports"
+              component={Reports}
+              options={{ headerShown: false, gestureEnabled: false }}
+            />
         </Stack.Navigator>
       </NavigationContainer>
       <StatusBar style="light" />
