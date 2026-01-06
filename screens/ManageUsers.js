@@ -1,21 +1,28 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  FlatList,
-  TouchableOpacity,
-  Alert,
   ActivityIndicator,
-  Modal,
-  TextInput,
+  Alert,
+  Animated,
+  FlatList,
   KeyboardAvoidingView,
-  Platform
+  Modal,
+  Platform,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+  Easing,
 } from 'react-native';
-import { listenToCollection, patchDocument, removeDocument, createDocument } from '../src/services/firestore';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { listenToCollection, removeDocument, createDocument } from '../src/services/firestore';
 import * as Crypto from 'expo-crypto';
 
-const ManageUsers = () => {
+const AnimatedFlatList = Animated.createAnimatedComponent(FlatList);
+const AnimatedTouchable = Animated.createAnimatedComponent(TouchableOpacity);
+
+const ManageUsers = ({ navigation }) => {
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modalVisible, setModalVisible] = useState(false);
@@ -25,6 +32,39 @@ const ManageUsers = () => {
   const [newPassword, setNewPassword] = useState('');
   const [newRole, setNewRole] = useState('staff'); // 'admin' or 'staff'
   const [adding, setAdding] = useState(false);
+
+  const heroAnim = useRef(new Animated.Value(0)).current;
+  const listAnim = useRef(new Animated.Value(0)).current;
+  const cardAnimations = useRef({}).current;
+  const metricsAnim = useRef([new Animated.Value(0), new Animated.Value(0), new Animated.Value(0)]).current;
+
+  const adminCount = useMemo(() => employees.filter((emp) => emp.role === 'admin').length, [employees]);
+  const staffCount = useMemo(() => employees.filter((emp) => emp.role !== 'admin').length, [employees]);
+  const activeCount = useMemo(() => employees.filter((emp) => emp.status !== 'Inactive').length, [employees]);
+
+  const metrics = useMemo(
+    () => [
+      {
+        label: 'Total équipe',
+        value: employees.length,
+        icon: 'account-group',
+        accent: '#FACC15',
+      },
+      {
+        label: 'Managers',
+        value: adminCount,
+        icon: 'shield-account',
+        accent: '#38BDF8',
+      },
+      {
+        label: 'Actifs',
+        value: activeCount,
+        icon: 'pulse',
+        accent: '#34D399',
+      },
+    ],
+    [employees.length, adminCount, activeCount],
+  );
 
   useEffect(() => {
     const unsubscribe = listenToCollection({
@@ -43,6 +83,40 @@ const ManageUsers = () => {
 
     return unsubscribe;
   }, []);
+
+  useEffect(() => {
+    heroAnim.setValue(0);
+    Animated.timing(heroAnim, {
+      toValue: 1,
+      duration: 600,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, [heroAnim]);
+
+  useEffect(() => {
+    metricsAnim.forEach((anim, index) => {
+      anim.setValue(0);
+      Animated.timing(anim, {
+        toValue: 1,
+        duration: 520,
+        delay: index * 90,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }).start();
+    });
+  }, [metricsAnim, metrics]);
+
+  useEffect(() => {
+    Object.keys(cardAnimations).forEach((key) => delete cardAnimations[key]);
+    listAnim.setValue(0);
+    Animated.timing(listAnim, {
+      toValue: 1,
+      duration: 500,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, [employees, cardAnimations, listAnim]);
 
   const handleAddEmployee = async () => {
     if (!newUsername.trim() || !newPassword.trim()) {
@@ -81,7 +155,7 @@ const ManageUsers = () => {
 
   const handleUserAction = async (employee, action) => {
     try {
-      if (action === 'Delete') {
+      if (action === 'delete') {
         if (employee.username === 'admin') {
           Alert.alert('Action refusée', 'Impossible de supprimer le compte admin principal.');
           return;
@@ -95,28 +169,126 @@ const ManageUsers = () => {
     }
   };
 
-  const renderItem = ({ item }) => (
-    <View style={styles.userItem}>
-      <View style={styles.userInfo}>
-        <Text style={styles.userText}><Text style={styles.label}>User:</Text> {item.username}</Text>
-        <Text style={styles.userText}><Text style={styles.label}>Role:</Text> {item.role}</Text>
-      </View>
+  const getCardAnimation = (id, index) => {
+    if (!cardAnimations[id]) {
+      const value = new Animated.Value(0);
+      cardAnimations[id] = value;
+      Animated.timing(value, {
+        toValue: 1,
+        duration: 420,
+        delay: index * 80,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }).start();
+    }
+    return cardAnimations[id];
+  };
 
-      <View style={styles.buttonContainer}>
-        {item.username !== 'admin' && (
-          <TouchableOpacity
-            style={[styles.button, styles.deleteButton]}
-            onPress={() => handleUserAction(item, 'Delete')}
-          >
-            <Text style={styles.buttonText}>Supprimer</Text>
-          </TouchableOpacity>
-        )}
-      </View>
-    </View>
-  );
+  const formatCreatedAt = (value) => {
+    if (!value) return 'Profil récent';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return 'Profil récent';
+    }
+    return `Depuis le ${date.toLocaleDateString('fr-FR')}`;
+  };
+
+  const initialsFrom = (name = '') => {
+    if (!name) return '??';
+    return name
+      .split(' ')
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase?.() || '')
+      .join('')
+      .padEnd(2, '•');
+  };
+
+  const roleVisuals = {
+    admin: {
+      label: 'Administrateur',
+      background: 'rgba(56,189,248,0.18)',
+      color: '#0EA5E9',
+      icon: 'shield-account',
+    },
+    staff: {
+      label: 'Conseiller',
+      background: 'rgba(250,204,21,0.18)',
+      color: '#B45309',
+      icon: 'account-badge',
+    },
+  };
+
+  const renderItem = ({ item, index }) => {
+    const anim = getCardAnimation(item.id || index, index);
+    const visuals = roleVisuals[item.role] || roleVisuals.staff;
+
+    return (
+      <Animated.View
+        style={[
+          styles.userItem,
+          {
+            opacity: anim,
+            transform: [
+              { translateY: anim.interpolate({ inputRange: [0, 1], outputRange: [18, 0] }) },
+              { scale: anim.interpolate({ inputRange: [0, 1], outputRange: [0.96, 1] }) },
+            ],
+          },
+        ]}
+      >
+        <View style={styles.userHeader}>
+          <View style={styles.avatar}>
+            <Text style={styles.avatarText}>{initialsFrom(item.username)}</Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.username}>{item.username}</Text>
+            <Text style={styles.userMeta}>{formatCreatedAt(item.createdAt)}</Text>
+          </View>
+          <View style={[styles.rolePill, { backgroundColor: visuals.background }]}> 
+            <MaterialCommunityIcons name={visuals.icon} size={16} color={visuals.color} />
+            <Text style={[styles.rolePillText, { color: visuals.color }]}>{visuals.label}</Text>
+          </View>
+        </View>
+
+        <View style={styles.userFooter}>
+          <View style={styles.userBadgeRow}>
+            <View style={styles.badge}>
+              <MaterialCommunityIcons name="email-lock" size={16} color="#1E3A8A" />
+              <Text style={styles.badgeText}>Accès sécurisé</Text>
+            </View>
+            <View style={styles.badge}>
+              <MaterialCommunityIcons name="account-check" size={16} color="#1E3A8A" />
+              <Text style={styles.badgeText}>{item.status || 'Active'}</Text>
+            </View>
+          </View>
+
+          {item.username !== 'admin' ? (
+            <AnimatedTouchable
+              style={[styles.actionButton, styles.deleteButton]}
+              onPress={() => handleUserAction(item, 'delete')}
+            >
+              <MaterialCommunityIcons name="trash-can" size={18} color="#DC2626" />
+              <Text style={styles.deleteText}>Supprimer</Text>
+            </AnimatedTouchable>
+          ) : (
+            <View style={styles.protectedBadge}>
+              <MaterialCommunityIcons name="lock" size={16} color="#1E3A8A" />
+              <Text style={styles.protectedText}>Compte protégé</Text>
+            </View>
+          )}
+        </View>
+      </Animated.View>
+    );
+  };
+
+  const handleNavigate = (screen) => {
+    navigation?.navigate?.(screen);
+  };
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.screen} edges={['top']}>
+      <AdminNavbar activeScreen="ManageUsers" onNavigate={handleNavigate} />
+      <View style={styles.container}>
       <View style={styles.headerRow}>
         <Text style={styles.title}>Gestion des Employés</Text>
         <TouchableOpacity style={styles.addButton} onPress={() => setModalVisible(true)}>
@@ -203,15 +375,23 @@ const ManageUsers = () => {
           </View>
         </KeyboardAvoidingView>
       </Modal>
-    </View>
+      </View>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+    backgroundColor: '#0F172A',
+  },
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
-    paddingTop: 20,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingTop: 24,
+    paddingBottom: 32,
   },
   headerRow: {
     flexDirection: 'row',
