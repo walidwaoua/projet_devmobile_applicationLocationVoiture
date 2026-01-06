@@ -58,13 +58,20 @@ const ACTION_META = [
 const AnimatedTouchable = Animated.createAnimatedComponent(TouchableOpacity);
 
 const AdminDashboard = ({ navigation }) => {
-
   const [metrics, setMetrics] = useState({ cars: 0, rentals: 0, pending: 0, users: 0 });
   const [loading, setLoading] = useState(true);
 
   const heroAnim = useRef(new Animated.Value(0)).current;
-  const metricAnimations = useRef(Array(METRIC_META.length).fill(null).map(() => new Animated.Value(0))).current;
-  const actionAnimations = useRef(Array(ACTION_META.length).fill(null).map(() => new Animated.Value(0))).current;
+  const metricAnimations = useRef(
+    Array(METRIC_META.length)
+      .fill(null)
+      .map(() => new Animated.Value(0))
+  ).current;
+  const actionAnimations = useRef(
+    Array(ACTION_META.length)
+      .fill(null)
+      .map(() => new Animated.Value(0))
+  ).current;
 
   useEffect(() => {
     let completed = 0;
@@ -121,6 +128,13 @@ const AdminDashboard = ({ navigation }) => {
       stopUsers?.();
     };
   }, []);
+
+  const handleLogout = () => {
+    navigation.reset({
+      index: 0,
+      routes: [{ name: 'Home' }],
+    });
+  };
 
   useEffect(() => {
     heroAnim.setValue(0);
@@ -185,6 +199,14 @@ const AdminDashboard = ({ navigation }) => {
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
       >
+        <View style={styles.headerRow}>
+          <Text style={styles.headerTitle}>Tableau de bord</Text>
+          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout} activeOpacity={0.88}>
+            <MaterialCommunityIcons name="logout" size={16} color="#F8FAFC" />
+            <Text style={styles.logoutText}>Déconnexion</Text>
+          </TouchableOpacity>
+        </View>
+
         <Animated.View style={[styles.hero, heroStyle]}>
           <View style={styles.heroBadge}>
             <Text style={styles.heroBadgeText}>Pilotage agence</Text>
@@ -195,7 +217,7 @@ const AdminDashboard = ({ navigation }) => {
           </Text>
           <View style={styles.heroActions}>
             <TouchableOpacity
-              style={styles.heroPrimary}
+              style={[styles.heroPrimary, styles.heroPill]}
               onPress={() => navigation.navigate('ManageCars')}
               activeOpacity={0.85}
             >
@@ -203,7 +225,7 @@ const AdminDashboard = ({ navigation }) => {
               <Text style={styles.heroPrimaryText}>Gérer les véhicules</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={styles.heroSecondary}
+              style={[styles.heroSecondary, styles.heroPill]}
               onPress={() => navigation.navigate('Reports')}
               activeOpacity={0.85}
             >
@@ -298,6 +320,18 @@ const styles = StyleSheet.create({
   scroll: {
     paddingBottom: 36,
   },
+  headerRow: {
+    marginHorizontal: 20,
+    marginBottom: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  headerTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#F8FAFC',
+  },
   hero: {
     marginHorizontal: 20,
     marginBottom: 24,
@@ -339,12 +373,14 @@ const styles = StyleSheet.create({
   heroActions: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
+  },
+  heroPill: {
+    marginRight: 12,
+    marginBottom: 12,
   },
   heroPrimary: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
     backgroundColor: '#FACC15',
     paddingHorizontal: 18,
     paddingVertical: 12,
@@ -354,11 +390,11 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#0F172A',
     fontSize: 14,
+    marginLeft: 8,
   },
   heroSecondary: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
     paddingHorizontal: 18,
     paddingVertical: 12,
     borderRadius: 999,
@@ -369,6 +405,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#F8FAFC',
     fontSize: 14,
+    marginLeft: 8,
   },
   section: {
     marginHorizontal: 20,
@@ -397,14 +434,14 @@ const styles = StyleSheet.create({
   metricsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 16,
+    justifyContent: 'space-between',
   },
   metricCard: {
     width: '47%',
     backgroundColor: '#fff',
     borderRadius: 20,
     padding: 16,
-    gap: 10,
+    marginBottom: 16,
     shadowColor: '#0F172A',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.08,
@@ -418,6 +455,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
+    marginBottom: 8,
   },
   metricLabel: {
     color: '#1E293B',
@@ -442,7 +480,6 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 16,
     shadowColor: '#0F172A',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.08,
@@ -455,10 +492,10 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
+    marginRight: 16,
   },
   actionCopy: {
     flex: 1,
-    gap: 4,
   },
   actionTitle: {
     fontSize: 16,
@@ -472,6 +509,22 @@ const styles = StyleSheet.create({
   },
   loader: {
     marginTop: 12,
+  },
+  logoutButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: 'rgba(248,250,252,0.25)',
+    backgroundColor: 'rgba(248,250,252,0.08)',
+  },
+  logoutText: {
+    color: '#F8FAFC',
+    fontWeight: '600',
+    fontSize: 12,
+    marginLeft: 6,
   },
 });
 

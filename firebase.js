@@ -1,7 +1,9 @@
 // firebase.js
 import { initializeApp } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
-import { getAuth } from 'firebase/auth';
+import { getAuth, initializeAuth, getReactNativePersistence } from 'firebase/auth';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
 
 // Configuration Firebase - Remplacez avec vos propres informations
 // Vous les trouverez dans la console Firebase : Project Settings > Your apps
@@ -21,8 +23,12 @@ const app = initializeApp(firebaseConfig);
 // Initialiser Firestore (base de données)
 export const db = getFirestore(app);
 
-// Initialiser Authentication (authentification)
-export const auth = getAuth(app);
+// Initialiser Authentication (authentification) avec persistance native sur mobile
+export const auth = Platform.OS === 'web'
+  ? getAuth(app)
+  : initializeAuth(app, {
+      persistence: getReactNativePersistence(AsyncStorage),
+    });
 
 
 export default app;

@@ -32,13 +32,12 @@ const LoginScreen = ({ navigation }) => {
 
     setLoading(true);
     try {
-      // 1. Find user by username
       const employeesRef = collection(db, 'employees');
       const q = query(employeesRef, where('username', '==', normalizedUsername));
       const snapshot = await getDocs(q);
 
       if (snapshot.empty) {
-        Alert.alert('Erreur', 'Nom d\'utilisateur incorrect.');
+        Alert.alert('Erreur', "Nom d'utilisateur incorrect.");
         setLoading(false);
         return;
       }
@@ -46,25 +45,21 @@ const LoginScreen = ({ navigation }) => {
       const userDoc = snapshot.docs[0];
       const userData = userDoc.data();
 
-      // 2. Hash input password and compare
       const inputHash = await Crypto.digestStringAsync(
         Crypto.CryptoDigestAlgorithm.SHA256,
         normalizedPassword
       );
 
       if (inputHash === userData.password) {
-        // Password Match
-        if (userData.role === 'admin') {
+        if (userData.role === 'admin' || userData.role === 'staff') {
           navigation.replace('AdminDashboard');
         } else {
-          Alert.alert('Accès refusé', "Vous n'avez pas les droits d'administrateur.");
+          Alert.alert('Accès refusé', "Vous n'avez pas les droits d'accès à cette interface.");
         }
       } else {
         Alert.alert('Erreur', 'Mot de passe incorrect.');
       }
-
     } catch (error) {
-      console.error('Login error:', error);
       Alert.alert('Erreur', "Une erreur est survenue lors de la connexion.");
     } finally {
       setLoading(false);
@@ -127,11 +122,20 @@ const LoginScreen = ({ navigation }) => {
             )}
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.backButton} onPress={() => navigation.navigate('Home')}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => navigation.navigate('Home')}
+          >
             <Text style={styles.backButtonText}>Retour à l'accueil</Text>
           </TouchableOpacity>
 
-          {/* Temporary Seed Button for Setup */}
+          <TouchableOpacity
+            style={styles.registerButton}
+            onPress={() => navigation.navigate('Register')}
+          >
+            <Text style={styles.registerText}>Créer un compte employé</Text>
+          </TouchableOpacity>
+
           <TouchableOpacity style={styles.seedButton} onPress={handleSeedEmployees}>
             <Text style={styles.seedButtonText}>(DEV) Initialiser BDD Employés</Text>
           </TouchableOpacity>
@@ -170,11 +174,6 @@ const styles = StyleSheet.create({
     padding: 24,
     borderRadius: 24,
     gap: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
   },
   inputGroup: {
     gap: 8,
@@ -216,16 +215,24 @@ const styles = StyleSheet.create({
     color: '#94A3B8',
     fontSize: 14,
   },
+  registerButton: {
+    alignItems: 'center',
+    paddingTop: 4,
+  },
+  registerText: {
+    color: '#FACC15',
+    fontSize: 13,
+  },
   seedButton: {
-    marginTop: 20,
-    padding: 8,
+    marginTop: 12,
+    padding: 6,
     alignItems: 'center',
   },
   seedButtonText: {
     color: '#475569',
     fontSize: 12,
     fontStyle: 'italic',
-  }
+  },
 });
 
 export default LoginScreen;
