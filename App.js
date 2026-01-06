@@ -14,6 +14,8 @@ import ManageCars from './screens/ManageCars';
 import ManageRentals from './screens/ManageRentals';
 import ManageUsers from './screens/ManageUsers';
 import Reports from './screens/Reports';
+import RegisterScreen from './screens/RegisterScreen';
+
 
 const Stack = createStackNavigator();
 
@@ -48,6 +50,11 @@ export default function App() {
             name="Login"
             component={LoginScreen}
             options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="Register"
+            component={RegisterScreen}
+            options={{ title: 'Créer un compte employé' }}
           />
 
           {/* Admin Routes */}
