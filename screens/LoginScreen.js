@@ -51,10 +51,10 @@ const LoginScreen = ({ navigation }) => {
       );
 
       if (inputHash === userData.password) {
-        if (userData.role === 'admin') {
+        if (userData.role === 'admin' || userData.role === 'staff') {
           navigation.replace('AdminDashboard');
         } else {
-          Alert.alert('Accès refusé', "Vous n'avez pas les droits d'administrateur.");
+          Alert.alert('Accès refusé', "Vous n'avez pas les droits d'accès à cette interface.");
         }
       } else {
         Alert.alert('Erreur', 'Mot de passe incorrect.');
@@ -122,11 +122,17 @@ const LoginScreen = ({ navigation }) => {
             )}
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.backButton} onPress={() => navigation.navigate('Home')}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => navigation.navigate('Home')}
+          >
             <Text style={styles.backButtonText}>Retour à l'accueil</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.registerButton} onPress={() => navigation.navigate('Register')}>
+          <TouchableOpacity
+            style={styles.registerButton}
+            onPress={() => navigation.navigate('Register')}
+          >
             <Text style={styles.registerText}>Créer un compte employé</Text>
           </TouchableOpacity>
 
