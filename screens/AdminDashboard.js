@@ -69,6 +69,13 @@ const AdminDashboard = ({ navigation }) => {
     };
   }, []);
 
+  const handleLogout = () => {
+    navigation.reset({
+      index: 0,
+      routes: [{ name: 'Home' }],
+    });
+  };
+
   const renderItem = ({ item }) => (
     <TouchableOpacity style={styles.menuItem} onPress={() => navigation.navigate(item.screen)}>
       <Text style={styles.menuText}>{item.title}</Text>
@@ -77,7 +84,13 @@ const AdminDashboard = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Admin Dashboard</Text>
+      <View style={styles.headerRow}>
+        <Text style={styles.title}>Admin Dashboard</Text>
+        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+          <Text style={styles.logoutText}>Déconnexion</Text>
+        </TouchableOpacity>
+      </View>
+
       <View style={styles.metricsRow}>
         <View style={styles.metricCard}>
           <Text style={styles.metricLabel}>Véhicules</Text>
@@ -96,7 +109,9 @@ const AdminDashboard = ({ navigation }) => {
           <Text style={styles.metricValue}>{metrics.users}</Text>
         </View>
       </View>
+
       {loading && <ActivityIndicator size="small" color="#1E3A8A" style={styles.loader} />}
+
       <FlatList
         data={menuItems}
         renderItem={renderItem}
@@ -113,11 +128,16 @@ const styles = StyleSheet.create({
     backgroundColor: '#f5f5f5',
     paddingTop: 50,
   },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    marginBottom: 20,
+  },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    textAlign: 'center',
-    marginBottom: 20,
   },
   metricsRow: {
     flexDirection: 'row',
@@ -164,6 +184,17 @@ const styles = StyleSheet.create({
   },
   loader: {
     marginBottom: 10,
+  },
+  logoutButton: {
+    backgroundColor: '#EF4444',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+  },
+  logoutText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 12,
   },
 });
 
