@@ -13,6 +13,10 @@ import {
   Easing,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { auth, db } from '../../firebase';
+import { doc, getDoc } from 'firebase/firestore';
+import { onAuthStateChanged } from 'firebase/auth';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createDocument, listenToCollection, removeDocument } from '../services/firestore';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Navbar from '../components/Navbar';
@@ -90,6 +94,7 @@ const HomeScreen = ({ navigation }) => {
   const [savingNote, setSavingNote] = useState(false);
   const [cars, setCars] = useState([]);
   const [loadingCars, setLoadingCars] = useState(true);
+  const [showUserActions, setShowUserActions] = useState(false);
 
   const heroAnim = useRef(new Animated.Value(0)).current;
   const carsAnim = useRef(new Animated.Value(0)).current;
@@ -138,6 +143,41 @@ const HomeScreen = ({ navigation }) => {
       }),
     ]).start();
   }, [heroAnim, carsAnim, featuresAnim, servicesAnim, stepsAnim, notesAnim]);
+
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, async (user) => {
+      if (!user) {
+        // try local session
+        try {
+          const raw = await AsyncStorage.getItem('localUser');
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            setShowUserActions(parsed.role === 'utilisateur');
+            return;
+          }
+        } catch (e) {}
+
+        setShowUserActions(false);
+        return;
+      }
+
+      try {
+        const ref = doc(db, 'users', user.uid);
+        const snap = await getDoc(ref);
+        const role = snap.exists() ? snap.data().role : null;
+        // Show actions only for regular users (no admin/staff)
+        if (role && (role === 'admin' || role === 'staff')) {
+          setShowUserActions(false);
+        } else {
+          setShowUserActions(true);
+        }
+      } catch (e) {
+        setShowUserActions(true);
+      }
+    });
+
+    return () => unsub();
+  }, []);
 
   useEffect(() => {
     const unsubscribe = listenToCollection({
@@ -245,6 +285,19 @@ const HomeScreen = ({ navigation }) => {
             <Text style={styles.heroSecondaryText}>Se connecter</Text>
           </TouchableOpacity>
         </View>
+        {showUserActions && (
+          <View style={styles.userActions}>
+            <TouchableOpacity style={styles.userButton} onPress={() => navigation.navigate('Profile')}>
+              <Text style={styles.userButtonText}>Mon profil</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.userButton} onPress={() => navigation.navigate('Reservation')}>
+              <Text style={styles.userButtonText}>Réserver</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.userButton} onPress={() => navigation.navigate('ReservationHistory')}>
+              <Text style={styles.userButtonText}>Mes réservations</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </Animated.View>
 
       <Animated.View style={[styles.section, styles.catalogSection, fadeUp(carsAnim)]}>
@@ -469,6 +522,21 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: '600',
     fontSize: 15,
+  },
+  userActions: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 12,
+  },
+  userButton: {
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+  },
+  userButtonText: {
+    color: '#1E3A8A',
+    fontWeight: '700',
   },
   section: {
     backgroundColor: '#fff',

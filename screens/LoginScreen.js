@@ -15,11 +15,13 @@ import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
 import * as Crypto from 'expo-crypto';
 import { seedEmployees } from '../src/utils/SeedEmployees';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const LoginScreen = ({ navigation }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [role, setRole] = useState('admin');
 
   const handleLogin = async () => {
     const normalizedUsername = username.trim();
@@ -32,8 +34,9 @@ const LoginScreen = ({ navigation }) => {
 
     setLoading(true);
     try {
-      const employeesRef = collection(db, 'employees');
-      const q = query(employeesRef, where('username', '==', normalizedUsername));
+      const collectionName = role === 'admin' ? 'employees' : 'utilisateurs';
+      const ref = collection(db, collectionName);
+      const q = query(ref, where('username', '==', normalizedUsername));
       const snapshot = await getDocs(q);
 
       if (snapshot.empty) {
@@ -50,14 +53,21 @@ const LoginScreen = ({ navigation }) => {
         normalizedPassword
       );
 
-      if (inputHash === userData.password) {
-        if (userData.role === 'admin' || userData.role === 'staff') {
-          navigation.replace('AdminDashboard');
-        } else {
-          Alert.alert('Accès refusé', "Vous n'avez pas les droits d'accès à cette interface.");
-        }
-      } else {
+      if (inputHash !== userData.password) {
         Alert.alert('Erreur', 'Mot de passe incorrect.');
+        setLoading(false);
+        return;
+      }
+
+      // Successful login
+      if (role === 'admin') {
+        // admin/employee
+        navigation.replace('AdminDashboard');
+      } else {
+        // utilisateur: store local session and go to Home
+        const session = { id: userDoc.id, username: normalizedUsername, role: 'utilisateur' };
+        await AsyncStorage.setItem('localUser', JSON.stringify(session));
+        navigation.replace('Home');
       }
     } catch (error) {
       Alert.alert('Erreur', "Une erreur est survenue lors de la connexion.");
@@ -96,6 +106,24 @@ const LoginScreen = ({ navigation }) => {
               autoCapitalize="none"
               placeholderTextColor="#94A3B8"
             />
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Se connecter en tant que</Text>
+            <View style={styles.roleButtons}>
+              <TouchableOpacity
+                style={[styles.roleButton, role === 'admin' && styles.roleButtonActive]}
+                onPress={() => setRole('admin')}
+              >
+                <Text style={[styles.roleText, role === 'admin' && styles.roleTextActive]}>Admin</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.roleButton, role === 'utilisateur' && styles.roleButtonActive]}
+                onPress={() => setRole('utilisateur')}
+              >
+                <Text style={[styles.roleText, role === 'utilisateur' && styles.roleTextActive]}>Utilisateur</Text>
+              </TouchableOpacity>
+            </View>
           </View>
 
           <View style={styles.inputGroup}>
@@ -215,6 +243,18 @@ const styles = StyleSheet.create({
     color: '#94A3B8',
     fontSize: 14,
   },
+  roleButtons: { flexDirection: 'row', gap: 12, marginTop: 8 },
+  roleButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#334155',
+    backgroundColor: '#1E293B',
+  },
+  roleButtonActive: { backgroundColor: '#F59E0B', borderColor: '#D97706' },
+  roleText: { color: '#E2E8F0' },
+  roleTextActive: { color: '#0F172A', fontWeight: '700' },
   registerButton: {
     alignItems: 'center',
     paddingTop: 4,

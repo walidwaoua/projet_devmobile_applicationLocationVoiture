@@ -15,6 +15,9 @@ import ManageRentals from './screens/ManageRentals';
 import ManageUsers from './screens/ManageUsers';
 import Reports from './screens/Reports';
 import RegisterScreen from './screens/RegisterScreen';
+import ProfileScreen from './src/screens/user/ProfileScreen';
+import ReservationScreen from './src/screens/user/ReservationScreen';
+import ReservationHistoryScreen from './src/screens/user/ReservationHistoryScreen';
 
 
 const Stack = createStackNavigator();
@@ -55,6 +58,22 @@ export default function App() {
             name="Register"
             component={RegisterScreen}
             options={{ title: 'Créer un compte employé' }}
+          />
+
+          <Stack.Screen
+            name="Profile"
+            component={ProfileScreen}
+            options={{ title: 'Mon profil' }}
+          />
+          <Stack.Screen
+            name="Reservation"
+            component={ReservationScreen}
+            options={{ title: 'Réservation' }}
+          />
+          <Stack.Screen
+            name="ReservationHistory"
+            component={ReservationHistoryScreen}
+            options={{ title: 'Historique des réservations' }}
           />
 
           {/* Admin Routes */}
