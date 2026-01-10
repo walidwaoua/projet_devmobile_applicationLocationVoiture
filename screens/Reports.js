@@ -8,103 +8,242 @@ import {
   Text,
   TouchableOpacity,
   View,
+  useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 import { listenToCollection } from '../src/services/firestore';
 
+const STATUS_PENDING = 'Pending';
+const STATUS_ACTIVE = 'Active';
+const STATUS_COMPLETED = 'Completed';
+
+const normalizeStatus = (status) => {
+  const value = String(status || '')
+    .trim()
+    .toLowerCase();
+
+  if (
+    ['active', 'en cours', 'confirmée', 'confirmee', 'approved', 'confirmé', 'confirme'].includes(value)
+  ) {
+    return STATUS_ACTIVE;
+  }
+
+  if (
+    [
+      'completed',
+      'clôturée',
+      'cloturee',
+      'terminée',
+      'terminee',
+      'returned',
+      'done',
+      'archived',
+    ].includes(value)
+  ) {
+    return STATUS_COMPLETED;
+  }
+
+  return STATUS_PENDING;
+};
+
+const toDate = (value) => {
+  if (!value) {
+    return null;
+  }
+  if (value instanceof Date) {
+    return value;
+  }
+  if (typeof value?.toDate === 'function') {
+    return value.toDate();
+  }
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
 const Reports = ({ navigation }) => {
-  const [rentals, setRentals] = useState([]);
+  const [reservations, setReservations] = useState([]);
   const [cars, setCars] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [lastUpdated, setLastUpdated] = useState(null);
 
   const heroAnim = useRef(new Animated.Value(0)).current;
   const listAnim = useRef(new Animated.Value(0)).current;
+  const { width } = useWindowDimensions();
+  const isCompact = width < 768;
+  const isUltraCompact = width < 420;
 
   useEffect(() => {
-    let rentalsLoaded = false;
+    let isActive = true;
+    let reservationsLoaded = false;
     let carsLoaded = false;
 
-    const stopRentals = listenToCollection({
-      collectionName: 'rentals',
+    setLoading(true);
+
+    const completeIfReady = () => {
+      if (!isActive || !reservationsLoaded || !carsLoaded) {
+        return;
+      }
+
+      setLoading(false);
+      setLastUpdated(new Date());
+    };
+
+    const stopReservations = listenToCollection({
+      collectionName: 'reservations',
+      orderByField: 'createdAt',
+      orderDirection: 'desc',
       onData: (data) => {
-        setRentals(data);
-        rentalsLoaded = true;
-        setLoading(!(rentalsLoaded && carsLoaded));
+        if (!isActive) {
+          return;
+        }
+
+        setReservations(data);
+        reservationsLoaded = true;
+        completeIfReady();
       },
       onError: (error) => {
-        console.error('Erreur Firestore (rentals):', error);
-        rentalsLoaded = true;
-        setLoading(!(rentalsLoaded && carsLoaded));
+        console.error('Erreur lors du chargement des réservations :', error);
+        if (!isActive) {
+          return;
+        }
+
+        setLoading(false);
       },
     });
 
     const stopCars = listenToCollection({
       collectionName: 'cars',
       onData: (data) => {
+        if (!isActive) {
+          return;
+        }
+
         setCars(data);
         carsLoaded = true;
-        setLoading(!(rentalsLoaded && carsLoaded));
+        completeIfReady();
       },
       onError: (error) => {
-        console.error('Erreur Firestore (cars):', error);
-        carsLoaded = true;
-        setLoading(!(rentalsLoaded && carsLoaded));
+        console.error('Erreur lors du chargement des véhicules :', error);
+        if (!isActive) {
+          return;
+        }
+
+        setLoading(false);
       },
     });
 
     return () => {
-      stopRentals?.();
+      isActive = false;
+      stopReservations?.();
       stopCars?.();
     };
   }, []);
 
-  useEffect(() => {
-    heroAnim.setValue(0);
-    Animated.timing(heroAnim, {
-      toValue: 1,
-      duration: 600,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
-    }).start();
-  }, [heroAnim]);
-
   const report = useMemo(() => {
-    const totalRentals = rentals.length;
-    const activeRentals = rentals.filter((rental) => rental.status === 'Active').length;
-    const totalRevenue = rentals.reduce((acc, rental) => acc + (Number(rental.totalPrice) || 0), 0);
+    const normalized = reservations.map((reservation) => {
+      const pickupDate =
+        reservation?.pickupDate ||
+        reservation?.startDate ||
+        reservation?.start_date ||
+        reservation?.start ||
+        reservation?.departureDate ||
+        null;
 
-    const carPopularity = rentals.reduce((acc, rental) => {
-      if (rental.carId) {
-        acc[rental.carId] = (acc[rental.carId] || 0) + 1;
+      const returnDate =
+        reservation?.returnDate ||
+        reservation?.endDate ||
+        reservation?.end_date ||
+        reservation?.end ||
+        reservation?.arrivalDate ||
+        null;
+
+      const totalCandidates = [
+        reservation?.totalPrice,
+        reservation?.total,
+        reservation?.amount,
+        reservation?.price,
+        reservation?.priceTotal,
+        reservation?.totalAmount,
+      ];
+
+      const parsedTotal = totalCandidates
+        .map((candidate) => Number(candidate))
+        .find((value) => Number.isFinite(value) && value >= 0);
+
+      const computedTotal = (() => {
+        const daily = Number(reservation?.dailyPrice);
+        const days = Number(reservation?.days || reservation?.duration || reservation?.durationDays);
+        if (Number.isFinite(daily) && Number.isFinite(days) && daily >= 0 && days > 0) {
+          return daily * days;
+        }
+        if (Number.isFinite(daily) && daily >= 0 && (!Number.isFinite(days) || days <= 0)) {
+          return daily;
+        }
+        return 0;
+      })();
+
+      return {
+        id: reservation?.id,
+        status: normalizeStatus(reservation?.status),
+        pickupDate,
+        returnDate,
+        pickupTime: reservation?.pickupTime || reservation?.pickup_time || reservation?.startTime || null,
+        returnTime: reservation?.returnTime || reservation?.return_time || reservation?.endTime || null,
+        vehicleId:
+          reservation?.vehicleId ||
+          reservation?.vehicleID ||
+          reservation?.carId ||
+          reservation?.carID ||
+          reservation?.vehicle,
+        vehicleModel:
+          reservation?.vehicleModel ||
+          reservation?.vehicleName ||
+          reservation?.carModel ||
+          reservation?.carName ||
+          reservation?.car ||
+          reservation?.vehicleLabel,
+        totalPrice: Number.isFinite(parsedTotal) ? parsedTotal : computedTotal,
+      };
+    });
+
+    const totalReservations = normalized.length;
+    const activeReservations = normalized.filter((item) => item.status === STATUS_ACTIVE).length;
+    const totalRevenue = normalized.reduce((acc, item) => acc + (Number.isFinite(item.totalPrice) ? item.totalPrice : 0), 0);
+
+    const carPopularity = normalized.reduce((acc, item) => {
+      const key = item.vehicleId || item.vehicleModel;
+      if (!key) {
+        return acc;
       }
+      acc[key] = (acc[key] || 0) + 1;
       return acc;
     }, {});
 
     let popularCar = 'Aucun véhicule';
     if (Object.keys(carPopularity).length > 0) {
-      const [topCarId] = Object.entries(carPopularity).sort((a, b) => b[1] - a[1])[0];
-      const carInfo = cars.find((car) => car.id === topCarId);
-      popularCar = carInfo
-        ? `${carInfo.brand || ''} ${carInfo.model || ''}`.trim() || 'Véhicule identifié'
-        : 'Véhicule non trouvé';
+      const [topKey] = Object.entries(carPopularity).sort((a, b) => b[1] - a[1])[0];
+      const carInfo = cars.find((car) => car.id === topKey);
+      if (carInfo) {
+        const label = `${carInfo.brand || ''} ${carInfo.model || ''}`.trim();
+        popularCar = label || 'Véhicule identifié';
+      } else {
+        popularCar = topKey;
+      }
     }
 
-    const monthlyMap = rentals.reduce((acc, rental) => {
-      if (!rental.startDate) {
+    const monthlyMap = normalized.reduce((acc, item) => {
+      const date = toDate(item.pickupDate);
+      if (!date) {
         return acc;
       }
-      const date = new Date(rental.startDate);
-      if (Number.isNaN(date.getTime())) {
-        return acc;
-      }
-      const key = `${date.getFullYear()}-${date.getMonth() + 1}`;
+      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
       acc[key] = (acc[key] || 0) + 1;
       return acc;
     }, {});
 
-    const monthlyRentals = Object.entries(monthlyMap)
+    const monthlyReservations = Object.entries(monthlyMap)
       .sort((a, b) => (a[0] > b[0] ? 1 : -1))
       .map(([key, count]) => {
         const [year, month] = key.split('-');
@@ -116,26 +255,26 @@ const Reports = ({ navigation }) => {
       });
 
     return {
-      totalRentals,
-      activeRentals,
+      totalReservations,
+      activeReservations,
       totalRevenue,
       popularCar,
-      monthlyRentals,
+      monthlyReservations,
     };
-  }, [rentals, cars]);
+  }, [reservations, cars]);
 
   const metrics = useMemo(
     () => [
       {
-        label: 'Locations totales',
-        value: report.totalRentals,
-        icon: 'briefcase-check',
+        label: 'Réservations totales',
+        value: report.totalReservations,
+        icon: 'clipboard-text',
         accent: '#38BDF8',
         hint: 'Historique complet',
       },
       {
-        label: 'Locations actives',
-        value: report.activeRentals,
+        label: 'Réservations actives',
+        value: report.activeReservations,
         icon: 'clock-check',
         accent: '#22D3EE',
         hint: 'En cours actuellement',
@@ -148,7 +287,7 @@ const Reports = ({ navigation }) => {
         hint: 'Depuis le lancement',
       },
     ],
-    [report.totalRentals, report.activeRentals, report.totalRevenue]
+    [report.totalReservations, report.activeReservations, report.totalRevenue]
   );
 
   const metricAnimations = useMemo(
@@ -170,8 +309,8 @@ const Reports = ({ navigation }) => {
   }, [metricAnimations]);
 
   const monthlyAnimations = useMemo(
-    () => report.monthlyRentals.map(() => new Animated.Value(0)),
-    [report.monthlyRentals]
+    () => report.monthlyReservations.map(() => new Animated.Value(0)),
+    [report.monthlyReservations]
   );
 
   useEffect(() => {
@@ -195,14 +334,14 @@ const Reports = ({ navigation }) => {
       easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
     }).start();
-  }, [listAnim, report.monthlyRentals]);
+  }, [listAnim, report.monthlyReservations]);
 
   const averageRevenue = useMemo(() => {
-    if (!report.totalRentals) {
+    if (!report.totalReservations) {
       return 0;
     }
-    return report.totalRevenue / report.totalRentals;
-  }, [report.totalRentals, report.totalRevenue]);
+    return report.totalRevenue / report.totalReservations;
+  }, [report.totalReservations, report.totalRevenue]);
 
   const handleGoBack = () => {
     if (navigation?.canGoBack?.()) {
@@ -234,6 +373,8 @@ const Reports = ({ navigation }) => {
         <Animated.View
           style={[
             styles.hero,
+            isCompact && styles.heroCompact,
+            isUltraCompact && styles.heroUltraCompact,
             {
               opacity: heroAnim,
               transform: [
@@ -250,9 +391,13 @@ const Reports = ({ navigation }) => {
           <Text style={styles.heroSubtitle}>
             Visualisez les revenus, l'activité et les tendances pour guider vos décisions.
           </Text>
-          <View style={styles.heroActions}>
+          <View style={[styles.heroActions, (isCompact || isUltraCompact) && styles.heroActionsCompact]}>
             <TouchableOpacity
-              style={[styles.heroPrimary, styles.heroPill]}
+              style={[
+                styles.heroPrimary,
+                styles.heroPill,
+                (isCompact || isUltraCompact) && styles.heroActionButtonCompact,
+              ]}
               onPress={handleNavigateRentals}
               activeOpacity={0.85}
             >
@@ -260,7 +405,11 @@ const Reports = ({ navigation }) => {
               <Text style={styles.heroPrimaryText}>Consulter les locations</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.heroSecondary, styles.heroPill]}
+              style={[
+                styles.heroSecondary,
+                styles.heroPill,
+                (isCompact || isUltraCompact) && styles.heroActionButtonCompact,
+              ]}
               onPress={handleNavigateDashboard}
               activeOpacity={0.85}
             >
@@ -268,6 +417,21 @@ const Reports = ({ navigation }) => {
               <Text style={styles.heroSecondaryText}>Retour au dashboard</Text>
             </TouchableOpacity>
           </View>
+          {lastUpdated && (
+            <Text
+              style={[
+                styles.lastUpdated,
+                (isCompact || isUltraCompact) && styles.lastUpdatedCompact,
+              ]}
+            >
+              {`Dernière mise à jour : ${lastUpdated.toLocaleString('fr-FR', {
+                hour: '2-digit',
+                minute: '2-digit',
+                day: '2-digit',
+                month: 'short',
+              })}`}
+            </Text>
+          )}
         </Animated.View>
 
         {loading ? (
@@ -277,10 +441,16 @@ const Reports = ({ navigation }) => {
           </View>
         ) : (
           <>
-            <View style={styles.section}>
+            <View
+              style={[
+                styles.section,
+                isCompact && styles.sectionCompact,
+                isUltraCompact && styles.sectionUltraCompact,
+              ]}
+            >
               <Text style={styles.sectionTitle}>Indicateurs clés</Text>
               <Text style={styles.sectionSubtitle}>Mesurez l'activité récente de vos locations.</Text>
-              <View style={styles.metricsGrid}>
+              <View style={[styles.metricsGrid, (isCompact || isUltraCompact) && styles.metricsGridCompact]}>
                 {metrics.map((metric, index) => {
                   const anim = metricAnimations[index];
                   return (
@@ -288,6 +458,7 @@ const Reports = ({ navigation }) => {
                       key={metric.label}
                       style={[
                         styles.metricCard,
+                        (isCompact || isUltraCompact) && styles.metricCardCompact,
                         {
                           opacity: anim,
                           transform: [
@@ -306,7 +477,11 @@ const Reports = ({ navigation }) => {
                         <MaterialCommunityIcons name={metric.icon} size={22} color={metric.accent} />
                       </View>
                       <Text style={styles.metricLabel}>{metric.label}</Text>
-                      <Text style={styles.metricValue}>{metric.value}</Text>
+                      <Text
+                        style={[styles.metricValue, (isCompact || isUltraCompact) && styles.metricValueCompact]}
+                      >
+                        {metric.value}
+                      </Text>
                       <Text style={styles.metricHint}>{metric.hint}</Text>
                     </Animated.View>
                   );
@@ -314,20 +489,38 @@ const Reports = ({ navigation }) => {
               </View>
             </View>
 
-            <View style={styles.section}>
+            <View
+              style={[
+                styles.section,
+                isCompact && styles.sectionCompact,
+                isUltraCompact && styles.sectionUltraCompact,
+              ]}
+            >
               <Text style={styles.sectionTitle}>Aperçus</Text>
               <Text style={styles.sectionSubtitle}>Comprenez la santé financière et la demande.</Text>
-              <View style={styles.insightsRow}>
-                <View style={[styles.insightCard, { backgroundColor: 'rgba(34,197,94,0.12)' }] }>
-                  <View style={[styles.insightIcon, { backgroundColor: 'rgba(34,197,94,0.18)' }] }>
+              <View style={[styles.insightsRow, (isCompact || isUltraCompact) && styles.insightsRowCompact]}>
+                <View
+                  style={[
+                    styles.insightCard,
+                    { backgroundColor: 'rgba(34,197,94,0.12)' },
+                    (isCompact || isUltraCompact) && styles.insightCardCompact,
+                  ]}
+                >
+                  <View style={[styles.insightIcon, { backgroundColor: 'rgba(34,197,94,0.18)' }]}>
                     <MaterialCommunityIcons name="cash-register" size={20} color="#15803D" />
                   </View>
                   <Text style={styles.insightLabel}>Revenu moyen</Text>
                   <Text style={styles.insightValue}>€{averageRevenue.toFixed(2)}</Text>
                   <Text style={styles.insightHint}>Par location confirmée</Text>
                 </View>
-                <View style={[styles.insightCard, { backgroundColor: 'rgba(250,204,21,0.12)' }] }>
-                  <View style={[styles.insightIcon, { backgroundColor: 'rgba(250,204,21,0.22)' }] }>
+                <View
+                  style={[
+                    styles.insightCard,
+                    { backgroundColor: 'rgba(250,204,21,0.12)' },
+                    (isCompact || isUltraCompact) && styles.insightCardCompact,
+                  ]}
+                >
+                  <View style={[styles.insightIcon, { backgroundColor: 'rgba(250,204,21,0.22)' }]}>
                     <MaterialCommunityIcons name="star-circle" size={20} color="#D97706" />
                   </View>
                   <Text style={styles.insightLabel}>Véhicule le plus demandé</Text>
@@ -337,19 +530,30 @@ const Reports = ({ navigation }) => {
               </View>
             </View>
 
-            <View style={styles.section}>
-              <View style={styles.sectionHeader}>
+            <View
+              style={[
+                styles.section,
+                isCompact && styles.sectionCompact,
+                isUltraCompact && styles.sectionUltraCompact,
+              ]}
+            >
+              <View
+                style={[
+                  styles.sectionHeader,
+                  (isCompact || isUltraCompact) && styles.sectionHeaderCompact,
+                ]}
+              >
                 <View>
                   <Text style={styles.sectionTitle}>Locations mensuelles</Text>
                   <Text style={styles.sectionSubtitle}>Suivez la cadence mois par mois.</Text>
                 </View>
-                <View style={styles.tag}>
+                <View style={[styles.tag, (isCompact || isUltraCompact) && styles.tagCompact]}>
                   <MaterialCommunityIcons name="calendar-month" size={16} color="#1E40AF" />
-                  <Text style={styles.tagText}>{report.monthlyRentals.length} périodes suivies</Text>
+                  <Text style={styles.tagText}>{report.monthlyReservations.length} périodes suivies</Text>
                 </View>
               </View>
 
-              {report.monthlyRentals.length === 0 ? (
+              {report.monthlyReservations.length === 0 ? (
                 <View style={styles.emptyWrap}>
                   <MaterialCommunityIcons name="chart-timeline-variant" size={28} color="#94A3B8" />
                   <Text style={styles.emptyText}>Aucune location enregistrée pour le moment.</Text>
@@ -366,7 +570,7 @@ const Reports = ({ navigation }) => {
                     },
                   ]}
                 >
-                  {report.monthlyRentals.map((item, index) => {
+                  {report.monthlyReservations.map((item, index) => {
                     const anim = monthlyAnimations[index];
                     return (
                       <Animated.View
@@ -453,6 +657,16 @@ const styles = StyleSheet.create({
     shadowRadius: 24,
     elevation: 10,
   },
+  heroCompact: {
+    marginHorizontal: 16,
+    borderRadius: 24,
+    padding: 22,
+  },
+  heroUltraCompact: {
+    marginHorizontal: 12,
+    borderRadius: 22,
+    padding: 20,
+  },
   heroBadge: {
     alignSelf: 'flex-start',
     backgroundColor: 'rgba(148,197,255,0.2)',
@@ -483,9 +697,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
   },
+  heroActionsCompact: {
+    flexDirection: 'column',
+    gap: 10,
+  },
   heroPill: {
     marginRight: 12,
     marginBottom: 12,
+  },
+  heroActionButtonCompact: {
+    width: '100%',
+    justifyContent: 'center',
+    marginRight: 0,
   },
   heroPrimary: {
     flexDirection: 'row',
@@ -515,6 +738,15 @@ const styles = StyleSheet.create({
     color: '#F8FAFC',
     fontSize: 14,
     marginLeft: 8,
+  },
+  lastUpdated: {
+    marginTop: 8,
+    color: 'rgba(248,250,252,0.78)',
+    fontSize: 12,
+    letterSpacing: 0.3,
+  },
+  lastUpdatedCompact: {
+    fontSize: 11,
   },
   loaderWrap: {
     marginHorizontal: 20,
@@ -549,11 +781,27 @@ const styles = StyleSheet.create({
     shadowRadius: 20,
     elevation: 6,
   },
+  sectionCompact: {
+    marginHorizontal: 16,
+    borderRadius: 22,
+    paddingHorizontal: 18,
+  },
+  sectionUltraCompact: {
+    marginHorizontal: 12,
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 20,
+  },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: 16,
+  },
+  sectionHeaderCompact: {
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    gap: 10,
   },
   sectionTitle: {
     fontSize: 20,
@@ -571,6 +819,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginTop: 18,
   },
+  metricsGridCompact: {
+    flexDirection: 'column',
+    justifyContent: 'flex-start',
+    gap: 14,
+  },
   metricCard: {
     width: '47%',
     backgroundColor: '#FFFFFF',
@@ -582,6 +835,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 12,
     elevation: 4,
+  },
+  metricCardCompact: {
+    width: '100%',
   },
   metricIconWrap: {
     width: 42,
@@ -603,6 +859,9 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     marginTop: 4,
   },
+  metricValueCompact: {
+    fontSize: 21,
+  },
   metricHint: {
     color: '#64748B',
     fontSize: 11,
@@ -616,10 +875,18 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     marginTop: 12,
   },
+  insightsRowCompact: {
+    flexDirection: 'column',
+    justifyContent: 'flex-start',
+    gap: 12,
+  },
   insightCard: {
     width: '48%',
     borderRadius: 20,
     padding: 18,
+  },
+  insightCardCompact: {
+    width: '100%',
   },
   insightIcon: {
     width: 38,
@@ -652,6 +919,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 14,
+  },
+  tagCompact: {
+    alignSelf: 'flex-start',
   },
   tagText: {
     marginLeft: 6,

@@ -22,7 +22,6 @@ const RegisterScreen = ({ navigation }) => {
   const [password, setPassword] = useState('');
   const [passwordConfirm, setPasswordConfirm] = useState('');
   const [loading, setLoading] = useState(false);
-  const [role, setRole] = useState('utilisateur');
 
   const handleRegister = async () => {
     const u = username.trim();
@@ -48,10 +47,18 @@ const RegisterScreen = ({ navigation }) => {
 
     try {
       const employeesRef = collection(db, 'employees');
-      const q = query(employeesRef, where('username', '==', u));
-      const snapshot = await getDocs(q);
+      const employeeSnapshot = await getDocs(query(employeesRef, where('username', '==', u)));
 
-      if (!snapshot.empty) {
+      if (!employeeSnapshot.empty) {
+        Alert.alert('Erreur', "Ce nom d'utilisateur est déjà utilisé.");
+        setLoading(false);
+        return;
+      }
+
+      const usersRef = collection(db, 'utilisateurs');
+      const userSnapshot = await getDocs(query(usersRef, where('username', '==', u)));
+
+      if (!userSnapshot.empty) {
         Alert.alert('Erreur', "Ce nom d'utilisateur est déjà utilisé.");
         setLoading(false);
         return;
@@ -62,34 +69,20 @@ const RegisterScreen = ({ navigation }) => {
         p
       );
 
-      if (role === 'admin') {
-        await createDocument('employees', {
-          username: u,
-          password: hashedPassword,
-          role: 'admin',
-          status: 'Active',
-          createdAt: new Date().toISOString(),
-        });
+      const docRef = await createDocument('utilisateurs', {
+        username: u,
+        password: hashedPassword,
+        role: 'utilisateur',
+        status: 'Active',
+        createdAt: new Date().toISOString(),
+      });
 
-        Alert.alert('Succès', 'Compte admin créé avec succès.', [{ text: 'OK', onPress: () => navigation.replace('Login') }]);
-      } else {
-        // create regular utilisateur
-        const docRef = await createDocument('utilisateurs', {
-          username: u,
-          password: hashedPassword,
-          role: 'utilisateur',
-          status: 'Active',
-          createdAt: new Date().toISOString(),
-        });
+      const session = { id: docRef.id, username: u, role: 'utilisateur' };
+      await AsyncStorage.setItem('localUser', JSON.stringify(session));
 
-        // store local session
-        const session = { id: docRef.id, username: u, role: 'utilisateur' };
-        await AsyncStorage.setItem('localUser', JSON.stringify(session));
-
-        Alert.alert('Succès', 'Compte utilisateur créé et connecté.', [
-          { text: 'OK', onPress: () => navigation.replace('Home') }
-        ]);
-      }
+      Alert.alert('Succès', 'Compte utilisateur créé et connecté.', [
+        { text: 'OK', onPress: () => navigation.replace('Home') }
+      ]);
     } catch (error) {
       Alert.alert('Erreur', "Une erreur s'est produite.");
     } finally {
@@ -104,9 +97,9 @@ const RegisterScreen = ({ navigation }) => {
     >
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.header}>
-          <Text style={styles.title}>Créer un compte employé</Text>
+          <Text style={styles.title}>Créer un compte utilisateur</Text>
           <Text style={styles.subtitle}>
-            Accès à l’espace d’administration.
+            Accès instantané à votre espace client.
           </Text>
         </View>
 
@@ -122,24 +115,6 @@ const RegisterScreen = ({ navigation }) => {
               placeholderTextColor="#94A3B8"
             />
           </View>
-
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Rôle</Text>
-              <View style={styles.roleButtons}>
-                <TouchableOpacity
-                  style={[styles.roleButton, role === 'utilisateur' && styles.roleButtonActive]}
-                  onPress={() => setRole('utilisateur')}
-                >
-                  <Text style={[styles.roleText, role === 'utilisateur' && styles.roleTextActive]}>Utilisateur</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.roleButton, role === 'admin' && styles.roleButtonActive]}
-                  onPress={() => setRole('admin')}
-                >
-                  <Text style={[styles.roleText, role === 'admin' && styles.roleTextActive]}>Admin</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
 
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Mot de passe</Text>
@@ -220,24 +195,6 @@ const styles = StyleSheet.create({
     color: '#F9FAFB',
     fontSize: 15,
   },
-  roleButtons: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  roleButton: {
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#374151',
-    backgroundColor: '#020617',
-  },
-  roleButtonActive: {
-    backgroundColor: '#22C55E',
-    borderColor: '#16A34A',
-  },
-  roleText: { color: '#F9FAFB' },
-  roleTextActive: { color: '#022C22', fontWeight: '700' },
   button: {
     backgroundColor: '#22C55E',
     padding: 14,

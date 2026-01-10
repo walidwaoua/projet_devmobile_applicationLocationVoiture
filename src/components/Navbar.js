@@ -7,6 +7,8 @@ const Navbar = ({
   onMenuPress,
   onCatalogPress,
   onLoginPress,
+  onLogoutPress,
+  isAuthenticated = false,
   showBack = false,
   onBackPress,
   navigation,
@@ -32,9 +34,18 @@ const Navbar = ({
         >
           <Text style={styles.linkText}>Catalogue</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.linkButton, styles.loginButton]} onPress={onLoginPress}>
-          <Text style={[styles.linkText, styles.loginText]}>Connexion</Text>
-        </TouchableOpacity>
+        {isAuthenticated ? (
+          <TouchableOpacity
+            style={[styles.linkButton, styles.logoutButton]}
+            onPress={onLogoutPress}
+          >
+            <Text style={[styles.linkText, styles.logoutText]}>Déconnexion</Text>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity style={[styles.linkButton, styles.loginButton]} onPress={onLoginPress}>
+            <Text style={[styles.linkText, styles.loginText]}>Connexion</Text>
+          </TouchableOpacity>
+        )}
       </View>
     </View>
   );
@@ -81,6 +92,11 @@ const styles = StyleSheet.create({
   loginButton: {
     backgroundColor: '#F59E0B',
   },
+  logoutButton: {
+    backgroundColor: 'rgba(248,250,252,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(248,250,252,0.32)',
+  },
   linkText: {
     color: '#fff',
     fontWeight: '600',
@@ -88,6 +104,9 @@ const styles = StyleSheet.create({
   },
   loginText: {
     color: '#1E293B',
+  },
+  logoutText: {
+    color: '#F8FAFC',
   },
 });
 

@@ -17,11 +17,31 @@ import * as Crypto from 'expo-crypto';
 import { seedEmployees } from '../src/utils/SeedEmployees';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const LoginScreen = ({ navigation }) => {
+const LoginScreen = ({ navigation, route }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [role, setRole] = useState('admin');
+  const redirectTo = route?.params?.redirectTo;
+  const redirectParams = route?.params?.redirectParams;
+  const findAccountByUsername = async (usernameToFind) => {
+    const employeeRef = collection(db, 'employees');
+    const employeeQuery = query(employeeRef, where('username', '==', usernameToFind));
+    const employeeSnapshot = await getDocs(employeeQuery);
+
+    if (!employeeSnapshot.empty) {
+      return { type: 'admin', doc: employeeSnapshot.docs[0] };
+    }
+
+    const userRef = collection(db, 'utilisateurs');
+    const userQuery = query(userRef, where('username', '==', usernameToFind));
+    const userSnapshot = await getDocs(userQuery);
+
+    if (!userSnapshot.empty) {
+      return { type: 'utilisateur', doc: userSnapshot.docs[0] };
+    }
+
+    return null;
+  };
 
   const handleLogin = async () => {
     const normalizedUsername = username.trim();
@@ -34,18 +54,15 @@ const LoginScreen = ({ navigation }) => {
 
     setLoading(true);
     try {
-      const collectionName = role === 'admin' ? 'employees' : 'utilisateurs';
-      const ref = collection(db, collectionName);
-      const q = query(ref, where('username', '==', normalizedUsername));
-      const snapshot = await getDocs(q);
+      const account = await findAccountByUsername(normalizedUsername);
 
-      if (snapshot.empty) {
+      if (!account) {
         Alert.alert('Erreur', "Nom d'utilisateur incorrect.");
         setLoading(false);
         return;
       }
 
-      const userDoc = snapshot.docs[0];
+      const userDoc = account.doc;
       const userData = userDoc.data();
 
       const inputHash = await Crypto.digestStringAsync(
@@ -59,15 +76,19 @@ const LoginScreen = ({ navigation }) => {
         return;
       }
 
-      // Successful login
-      if (role === 'admin') {
-        // admin/employee
+      await AsyncStorage.removeItem('localUser');
+
+      if (account.type === 'admin') {
         navigation.replace('AdminDashboard');
       } else {
-        // utilisateur: store local session and go to Home
         const session = { id: userDoc.id, username: normalizedUsername, role: 'utilisateur' };
         await AsyncStorage.setItem('localUser', JSON.stringify(session));
-        navigation.replace('Home');
+
+        if (redirectTo) {
+          navigation.replace(redirectTo, redirectParams ?? {});
+        } else {
+          navigation.reset({ index: 0, routes: [{ name: 'Home' }] });
+        }
       }
     } catch (error) {
       Alert.alert('Erreur', "Une erreur est survenue lors de la connexion.");
@@ -91,8 +112,8 @@ const LoginScreen = ({ navigation }) => {
     >
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.header}>
-          <Text style={styles.title}>Connexion Employés</Text>
-          <Text style={styles.subtitle}>Accès sécurisé administration</Text>
+          <Text style={styles.title}>Connexion sécurisée</Text>
+          <Text style={styles.subtitle}>Accédez à votre espace client </Text>
         </View>
 
         <View style={styles.form}>
@@ -106,24 +127,6 @@ const LoginScreen = ({ navigation }) => {
               autoCapitalize="none"
               placeholderTextColor="#94A3B8"
             />
-          </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Se connecter en tant que</Text>
-            <View style={styles.roleButtons}>
-              <TouchableOpacity
-                style={[styles.roleButton, role === 'admin' && styles.roleButtonActive]}
-                onPress={() => setRole('admin')}
-              >
-                <Text style={[styles.roleText, role === 'admin' && styles.roleTextActive]}>Admin</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.roleButton, role === 'utilisateur' && styles.roleButtonActive]}
-                onPress={() => setRole('utilisateur')}
-              >
-                <Text style={[styles.roleText, role === 'utilisateur' && styles.roleTextActive]}>Utilisateur</Text>
-              </TouchableOpacity>
-            </View>
           </View>
 
           <View style={styles.inputGroup}>
@@ -161,11 +164,11 @@ const LoginScreen = ({ navigation }) => {
             style={styles.registerButton}
             onPress={() => navigation.navigate('Register')}
           >
-            <Text style={styles.registerText}>Créer un compte employé</Text>
+            <Text style={styles.registerText}>Créer un compte</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.seedButton} onPress={handleSeedEmployees}>
-            <Text style={styles.seedButtonText}>(DEV) Initialiser BDD Employés</Text>
+            <Text style={styles.seedButtonText}></Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -243,18 +246,6 @@ const styles = StyleSheet.create({
     color: '#94A3B8',
     fontSize: 14,
   },
-  roleButtons: { flexDirection: 'row', gap: 12, marginTop: 8 },
-  roleButton: {
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#334155',
-    backgroundColor: '#1E293B',
-  },
-  roleButtonActive: { backgroundColor: '#F59E0B', borderColor: '#D97706' },
-  roleText: { color: '#E2E8F0' },
-  roleTextActive: { color: '#0F172A', fontWeight: '700' },
   registerButton: {
     alignItems: 'center',
     paddingTop: 4,

@@ -14,6 +14,122 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { listenToCollection, patchDocument, removeDocument } from '../src/services/firestore';
 
+const STATUS_PENDING = 'Pending';
+const STATUS_ACTIVE = 'Active';
+const STATUS_COMPLETED = 'Completed';
+
+const normalizeStatus = (status) => {
+  const value = String(status || '')
+    .trim()
+    .toLowerCase();
+
+  if (
+    ['active', 'en cours', 'confirmée', 'confirmee', 'approved', 'confirmé', 'confirme'].includes(value)
+  ) {
+    return STATUS_ACTIVE;
+  }
+
+  if (
+    [
+      'completed',
+      'clôturée',
+      'cloturee',
+      'terminée',
+      'terminee',
+      'returned',
+      'done',
+      'archived',
+    ].includes(value)
+  ) {
+    return STATUS_COMPLETED;
+  }
+
+  return STATUS_PENDING;
+};
+
+const buildCustomerName = (reservation) => {
+  const firstName = String(reservation?.firstName || '')
+    .trim()
+    .replace(/\s+/g, ' ');
+  const lastName = String(reservation?.lastName || '')
+    .trim()
+    .replace(/\s+/g, ' ');
+
+  const fullName = [firstName, lastName].filter(Boolean).join(' ').trim();
+  if (fullName) {
+    return fullName;
+  }
+
+  if (reservation?.userEmail) {
+    return reservation.userEmail;
+  }
+
+  if (reservation?.customer) {
+    return reservation.customer;
+  }
+
+  return 'Client inconnu';
+};
+
+const mapReservationRecord = (reservation) => {
+  const status = normalizeStatus(reservation?.status);
+  const startDate = reservation?.pickupDate || reservation?.startDate || null;
+  const endDate = reservation?.returnDate || reservation?.endDate || null;
+
+  return {
+    id: reservation?.id,
+    status,
+    customerName: buildCustomerName(reservation),
+    carLabel:
+      reservation?.vehicleModel ||
+      reservation?.vehicleName ||
+      reservation?.car ||
+      reservation?.carLabel ||
+      'Véhicule à confirmer',
+    startDate,
+    endDate,
+    pickupTime: reservation?.pickupTime || null,
+    returnTime: reservation?.returnTime || null,
+    notes: reservation?.notes || '',
+    totalPrice: Number(reservation?.totalPrice) || 0,
+    dailyPrice: Number(reservation?.dailyPrice) || 0,
+    raw: reservation,
+  };
+};
+
+const toDate = (value) => {
+  if (!value) {
+    return null;
+  }
+  if (value instanceof Date) {
+    return value;
+  }
+  if (typeof value?.toDate === 'function') {
+    return value.toDate();
+  }
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
+const formatDateWithTime = (dateValue, timeValue) => {
+  const date = toDate(dateValue);
+  if (!date) {
+    return 'Date inconnue';
+  }
+
+  const formattedDate = date.toLocaleDateString('fr-FR', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
+
+  if (!timeValue) {
+    return formattedDate;
+  }
+
+  return `${formattedDate} - ${timeValue}`;
+};
+
 const AnimatedFlatList = Animated.createAnimatedComponent(FlatList);
 const AnimatedTouchable = Animated.createAnimatedComponent(TouchableOpacity);
 
@@ -26,9 +142,12 @@ const ManageRentals = ({ navigation }) => {
   const cardAnimations = useRef({}).current;
   const metricsAnim = useRef([new Animated.Value(0), new Animated.Value(0), new Animated.Value(0)]).current;
 
-  const pendingCount = useMemo(() => rentals.filter((r) => r.status === 'Pending').length, [rentals]);
-  const activeCount = useMemo(() => rentals.filter((r) => r.status === 'Active').length, [rentals]);
-  const completedCount = useMemo(() => rentals.filter((r) => r.status === 'Completed').length, [rentals]);
+  const pendingCount = useMemo(() => rentals.filter((r) => r.status === STATUS_PENDING).length, [rentals]);
+  const activeCount = useMemo(() => rentals.filter((r) => r.status === STATUS_ACTIVE).length, [rentals]);
+  const completedCount = useMemo(
+    () => rentals.filter((r) => r.status === STATUS_COMPLETED).length,
+    [rentals],
+  );
 
   const metrics = useMemo(
     () => [
@@ -56,16 +175,17 @@ const ManageRentals = ({ navigation }) => {
 
   useEffect(() => {
     const unsubscribe = listenToCollection({
-      collectionName: 'rentals',
-      orderByField: 'startDate',
+      collectionName: 'reservations',
+      orderByField: 'createdAt',
       orderDirection: 'desc',
       onData: (data) => {
-        setRentals(data);
+        const normalized = data.map(mapReservationRecord);
+        setRentals(normalized);
         setLoading(false);
       },
       onError: (error) => {
-        console.error('Erreur Firestore (rentals):', error);
-        Alert.alert('Erreur', "Impossible de charger les réservations.");
+        console.error('Erreur Firestore (reservations):', error);
+        Alert.alert('Erreur', 'Impossible de charger les réservations.');
         setLoading(false);
       },
     });
@@ -107,32 +227,23 @@ const ManageRentals = ({ navigation }) => {
     }).start();
   }, [rentals, cardAnimations, listAnim]);
 
-  const formatDate = (value) => {
-    if (!value) return 'Date inconnue';
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) {
-      return value;
-    }
-    return date.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
-  };
-
   const handleRentalAction = async (rental, action) => {
     try {
       if (action === 'approve') {
-        await patchDocument('rentals', rental.id, {
-          status: 'Active',
+        await patchDocument('reservations', rental.id, {
+          status: STATUS_ACTIVE,
           approvedAt: new Date().toISOString(),
         });
-        Alert.alert('Validée', `La location de ${rental.customer} démarre.`);
+        Alert.alert('Validée', `La réservation de ${rental.customerName} est confirmée.`);
       } else if (action === 'deny') {
-        await removeDocument('rentals', rental.id);
-        Alert.alert('Refusée', `La demande de ${rental.customer} a été supprimée.`);
+        await removeDocument('reservations', rental.id);
+        Alert.alert('Refusée', `La demande de ${rental.customerName} a été supprimée.`);
       } else if (action === 'complete') {
-        await patchDocument('rentals', rental.id, {
-          status: 'Completed',
+        await patchDocument('reservations', rental.id, {
+          status: STATUS_COMPLETED,
           completedAt: new Date().toISOString(),
         });
-        Alert.alert('Clôturée', `La location de ${rental.customer} est clôturée.`);
+        Alert.alert('Clôturée', `La réservation de ${rental.customerName} est clôturée.`);
       }
     } catch (error) {
       console.error('Erreur traitement location:', error);
@@ -156,19 +267,19 @@ const ManageRentals = ({ navigation }) => {
   };
 
   const statusVisuals = {
-    Pending: {
+    [STATUS_PENDING]: {
       label: 'En attente',
       background: 'rgba(250,204,21,0.18)',
       color: '#B45309',
       icon: 'clock-alert',
     },
-    Active: {
+    [STATUS_ACTIVE]: {
       label: 'En cours',
       background: 'rgba(14,165,233,0.18)',
       color: '#0369A1',
       icon: 'car-key',
     },
-    Completed: {
+    [STATUS_COMPLETED]: {
       label: 'Clôturée',
       background: 'rgba(34,197,94,0.18)',
       color: '#047857',
@@ -178,7 +289,7 @@ const ManageRentals = ({ navigation }) => {
 
   const renderItem = ({ item, index }) => {
     const anim = getCardAnimation(item.id || index, index);
-    const visuals = statusVisuals[item.status] || statusVisuals.Pending;
+    const visuals = statusVisuals[item.status] || statusVisuals[STATUS_PENDING];
 
     return (
       <Animated.View
@@ -198,8 +309,8 @@ const ManageRentals = ({ navigation }) => {
             <MaterialCommunityIcons name="account-circle" size={26} color="#1E3A8A" />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.customerName}>{item.customer || 'Client inconnu'}</Text>
-            <Text style={styles.rentalMeta}>{item.car || 'Véhicule à confirmer'}</Text>
+            <Text style={styles.customerName}>{item.customerName || 'Client inconnu'}</Text>
+            <Text style={styles.rentalMeta}>{item.carLabel || 'Véhicule à confirmer'}</Text>
           </View>
           <View style={[styles.statusPill, { backgroundColor: visuals.background }]}>
             <MaterialCommunityIcons name={visuals.icon} size={16} color={visuals.color} />
@@ -210,19 +321,23 @@ const ManageRentals = ({ navigation }) => {
         <View style={styles.scheduleRow}>
           <View style={styles.scheduleBlock}>
             <Text style={styles.scheduleLabel}>Début</Text>
-            <Text style={styles.scheduleValue}>{formatDate(item.startDate)}</Text>
+            <Text style={styles.scheduleValue}>
+              {formatDateWithTime(item.startDate, item.pickupTime)}
+            </Text>
           </View>
           <MaterialCommunityIcons name="arrow-right" size={18} color="#94A3B8" />
           <View style={styles.scheduleBlock}>
             <Text style={styles.scheduleLabel}>Retour</Text>
-            <Text style={styles.scheduleValue}>{formatDate(item.endDate)}</Text>
+            <Text style={styles.scheduleValue}>
+              {formatDateWithTime(item.endDate, item.returnTime)}
+            </Text>
           </View>
         </View>
 
         {item.notes ? <Text style={styles.notesText}>{item.notes}</Text> : null}
 
         <View style={styles.actionRow}>
-          {item.status === 'Pending' && (
+          {item.status === STATUS_PENDING && (
             <>
               <AnimatedTouchable
                 style={[styles.actionButton, styles.approveButton]}
@@ -240,7 +355,7 @@ const ManageRentals = ({ navigation }) => {
               </AnimatedTouchable>
             </>
           )}
-          {item.status === 'Active' && (
+          {item.status === STATUS_ACTIVE && (
             <AnimatedTouchable
               style={[styles.actionButton, styles.completeButton]}
               onPress={() => handleRentalAction(item, 'complete')}
@@ -332,7 +447,7 @@ const ManageRentals = ({ navigation }) => {
             <AnimatedFlatList
               data={rentals}
               renderItem={renderItem}
-              keyExtractor={(item) => item.id}
+              keyExtractor={(item) => String(item.id || item?.raw?.id)}
               contentContainerStyle={styles.list}
               ListEmptyComponent={<Text style={styles.emptyText}>Aucune réservation pour le moment.</Text>}
               style={{ opacity: listAnim }}

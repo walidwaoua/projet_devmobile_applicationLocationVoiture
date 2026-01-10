@@ -11,11 +11,13 @@ import {
   TouchableOpacity,
   View,
   Easing,
+  Modal,
+  Pressable,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { auth, db } from '../../firebase';
 import { doc, getDoc } from 'firebase/firestore';
-import { onAuthStateChanged } from 'firebase/auth';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createDocument, listenToCollection, removeDocument } from '../services/firestore';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -25,20 +27,20 @@ const FEATURES = [
   {
     id: 'fleet',
     icon: 'car-multiple',
-    title: 'Gestion complète de la flotte',
-    description: 'Visualisez disponibilité, entretien et kilométrage de chaque véhicule en temps réel.',
+    title: 'Pilotage de la flotte LuxDrive',
+    description: 'Suivez disponibilité, entretien et kilométrage de chaque véhicule LuxDrive en temps réel pour un service irréprochable.',
   },
   {
     id: 'pricing',
     icon: 'cash-multiple',
-    title: 'Tarification dynamique',
-    description: 'Adaptez vos prix selon la saison, la durée ou des campagnes promotionnelles ciblées.',
+    title: 'Tarification maîtrisée',
+    description: 'Ajustez les tarifs selon saison, durée ou offres exclusives pour offrir le meilleur à la communauté LuxDrive.',
   },
   {
     id: 'crm',
     icon: 'account-check',
-    title: 'Suivi client intégré',
-    description: 'Gardez l\'historique complet des réservations et automatisez les rappels de documents.',
+    title: 'Suivi client LuxDrive',
+    description: 'Centralisez l\'historique des réservations et automatisez les rappels pour accompagner chaque conducteur LuxDrive sereinement.',
   },
 ];
 
@@ -46,20 +48,20 @@ const AGENCY_SERVICES = [
   {
     id: 'branding',
     icon: 'cellphone-cog',
-    title: 'Application à vos couleurs',
-    description: 'Branding aligné sur votre agence et parcours personnalisés pour votre équipe terrain.',
+    title: 'Identité LuxDrive affirmée',
+    description: 'Interface intégralement aux couleurs LuxDrive et parcours pensés pour notre équipe dédiée.',
   },
   {
     id: 'support',
     icon: 'headset',
-    title: 'Support 7j/7',
-    description: 'Assistance client, notifications automatiques et centre d\'aide intégré pour vos conducteurs.',
+    title: 'Assistance 7j/7',
+    description: 'Support client continu, notifications proactives et guides pour garantir des retraits sans stress.',
   },
   {
     id: 'analytics',
     icon: 'chart-box',
-    title: 'Pilotage data-driven',
-    description: 'Rapports chiffrés, prévisions de disponibilité et suivi des KPI de votre agence.',
+    title: 'Décisions pilotées par LuxDrive',
+    description: 'Rapports clairs, prévisions de disponibilité et KPI dédiés à la performance de LuxDrive.',
   },
 ];
 
@@ -68,26 +70,25 @@ const RESERVATION_STEPS = [
     id: 'search',
     badge: '1',
     title: 'Recherche intuitive',
-    description: 'Filtrez par ville, période, catégorie de véhicule ou options premium en quelques secondes.',
+    description: 'Parcourez la flotte LuxDrive par durée, catégorie ou options premium en quelques secondes.',
   },
   {
     id: 'selection',
     badge: '2',
-    title: 'Sélection & extras',
-    description: 'Proposez des fiches détaillées, assurances et équipements complémentaires clairement.',
+    title: 'Sélection & confort',
+    description: 'Choisissez votre véhicule et ajoutez assurances ou équipements LuxDrive selon vos besoins.',
   },
   {
     id: 'payment',
     badge: '3',
     title: 'Confirmation sécurisée',
-    description: 'Paiement chiffré, contrats générés automatiquement et notifications en temps réel.',
+    description: 'Recevez immédiatement votre contrat digital LuxDrive et vos instructions de retrait sécurisées.',
   },
 ];
 
 const HomeScreen = ({ navigation }) => {
   const onCatalogPress = () => navigation.navigate('Catalog');
   const onLoginPress = () => navigation.navigate('Login');
-  const onMenuPress = () => Alert.alert('Menu', 'Le menu latéral sera disponible prochainement.');
   const [text, setText] = useState('');
   const [items, setItems] = useState([]);
   const [loadingNotes, setLoadingNotes] = useState(true);
@@ -95,6 +96,9 @@ const HomeScreen = ({ navigation }) => {
   const [cars, setCars] = useState([]);
   const [loadingCars, setLoadingCars] = useState(true);
   const [showUserActions, setShowUserActions] = useState(false);
+  const [menuVisible, setMenuVisible] = useState(false);
+
+  const handleMenuPress = () => setMenuVisible(true);
 
   const heroAnim = useRef(new Animated.Value(0)).current;
   const carsAnim = useRef(new Animated.Value(0)).current;
@@ -102,6 +106,50 @@ const HomeScreen = ({ navigation }) => {
   const servicesAnim = useRef(new Animated.Value(0)).current;
   const stepsAnim = useRef(new Animated.Value(0)).current;
   const notesAnim = useRef(new Animated.Value(0)).current;
+
+  const closeMenu = () => setMenuVisible(false);
+
+  const handleNavigate = (routeName) => {
+    closeMenu();
+    navigation.navigate(routeName);
+  };
+
+  const handleLogout = async () => {
+    closeMenu();
+    try {
+      if (auth.currentUser) {
+        await signOut(auth);
+      }
+    } catch (error) {
+      console.error('Erreur déconnexion:', error);
+    }
+
+    try {
+      await AsyncStorage.removeItem('localUser');
+    } catch (storageError) {
+      console.error('Erreur nettoyage session locale:', storageError);
+    }
+
+    setShowUserActions(false);
+    Alert.alert('Déconnexion', 'Vous êtes déconnecté.');
+  };
+
+  const menuItems = showUserActions
+    ? [
+        { label: 'Mon profil', icon: 'account-circle', action: () => handleNavigate('Profile') },
+        {
+          label: 'Mes réservations',
+          icon: 'clipboard-text-clock',
+          action: () => handleNavigate('ReservationHistory'),
+        },
+        { label: 'Catalogue', icon: 'car-info', action: () => handleNavigate('Catalog') },
+        { label: 'Se déconnecter', icon: 'logout', action: handleLogout, danger: true },
+      ]
+    : [
+        { label: 'Se connecter', icon: 'login', action: () => handleNavigate('Login') },
+        { label: 'Créer un compte', icon: 'account-plus', action: () => handleNavigate('Register') },
+        { label: 'Catalogue', icon: 'car-info', action: () => handleNavigate('Catalog') },
+      ];
 
   useEffect(() => {
     Animated.sequence([
@@ -257,12 +305,48 @@ const HomeScreen = ({ navigation }) => {
     <SafeAreaView style={styles.screen} edges={['top']}>
       <Navbar
         title="Accueil"
-        onMenuPress={onMenuPress}
+        onMenuPress={handleMenuPress}
         onCatalogPress={onCatalogPress}
         onLoginPress={onLoginPress}
+        onLogoutPress={handleLogout}
+        isAuthenticated={showUserActions}
         showBack={false}
         navigation={navigation}
       />
+      <Modal
+        animationType="fade"
+        transparent
+        visible={menuVisible}
+        onRequestClose={closeMenu}
+      >
+        <View style={styles.menuOverlay}>
+          <Pressable style={styles.menuBackdrop} onPress={closeMenu} />
+          <View style={styles.menuSheet}>
+            <Text style={styles.menuTitle}>
+              {showUserActions ? 'Espace client' : 'Navigation'}
+            </Text>
+            {menuItems.map((item) => (
+              <TouchableOpacity
+                key={item.label}
+                style={[styles.menuItem, item.danger && styles.menuItemDanger]}
+                onPress={item.action}
+                activeOpacity={0.85}
+              >
+                <MaterialCommunityIcons
+                  name={item.icon}
+                  size={22}
+                  color={item.danger ? '#DC2626' : '#1E40AF'}
+                />
+                <Text
+                  style={[styles.menuItemText, item.danger && styles.menuItemTextDanger]}
+                >
+                  {item.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      </Modal>
       <Animated.ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.container}
@@ -270,34 +354,23 @@ const HomeScreen = ({ navigation }) => {
       >
       <Animated.View style={[styles.hero, fadeUp(heroAnim)]}>
         <View style={styles.heroHeader}>
-          <Text style={styles.heroBadge}>LOCATION PREMIUM</Text>
-          <Text style={styles.heroTitle}>LuxDrive </Text>
+          <Text style={styles.heroBadge}>LUXDRIVE PREMIUM</Text>
+          <Text style={styles.heroTitle}>LuxDrive</Text>
         </View>
         <Text style={styles.heroSubtitle}>
-          Offrez à vos clients une expérience fluide pour découvrir, réserver et récupérer leurs véhicules,
-          tout en pilotant votre flotte depuis un tableau de bord moderne.
+          LuxDrive simplifie la découverte, la réservation et la récupération de votre véhicule premium,
+          tout en pilotant une flotte maîtrisée depuis un tableau de bord moderne.
         </Text>
         <View style={styles.heroActions}>
           <TouchableOpacity style={styles.heroPrimary} onPress={onCatalogPress}>
             <Text style={styles.heroPrimaryText}>Voir le catalogue</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.heroSecondary} onPress={onLoginPress}>
-            <Text style={styles.heroSecondaryText}>Se connecter</Text>
-          </TouchableOpacity>
+          {!showUserActions && (
+            <TouchableOpacity style={styles.heroSecondary} onPress={onLoginPress}>
+              <Text style={styles.heroSecondaryText}>Se connecter</Text>
+            </TouchableOpacity>
+          )}
         </View>
-        {showUserActions && (
-          <View style={styles.userActions}>
-            <TouchableOpacity style={styles.userButton} onPress={() => navigation.navigate('Profile')}>
-              <Text style={styles.userButtonText}>Mon profil</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.userButton} onPress={() => navigation.navigate('Reservation')}>
-              <Text style={styles.userButtonText}>Réserver</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.userButton} onPress={() => navigation.navigate('ReservationHistory')}>
-              <Text style={styles.userButtonText}>Mes réservations</Text>
-            </TouchableOpacity>
-          </View>
-        )}
       </Animated.View>
 
       <Animated.View style={[styles.section, styles.catalogSection, fadeUp(carsAnim)]}>
@@ -305,7 +378,7 @@ const HomeScreen = ({ navigation }) => {
           <View>
             <Text style={styles.sectionTitle}>Nos véhicules phares</Text>
             <Text style={styles.sectionDescription}>
-              Un aperçu des modèles disponibles dans votre catalogue. Ajoutez des images et des prix depuis le back-office.
+              Un aperçu de la flotte LuxDrive. Enrichissez les visuels et tarifs depuis le back-office pour refléter notre offre premium.
             </Text>
           </View>
         </View>
@@ -361,7 +434,7 @@ const HomeScreen = ({ navigation }) => {
       </Animated.View>
 
       <Animated.View style={[styles.section, fadeUp(servicesAnim)]}>
-        <Text style={styles.sectionTitle}>Services pour votre agence</Text>
+        <Text style={styles.sectionTitle}>Services LuxDrive</Text>
         <View style={styles.cardsWrapper}>
           {AGENCY_SERVICES.map((service) => (
             <View key={service.id} style={[styles.card, styles.serviceCard]}>
@@ -395,51 +468,7 @@ const HomeScreen = ({ navigation }) => {
         </View>
       </Animated.View>
 
-      <Animated.View style={[styles.section, fadeUp(notesAnim)]}>
-        <Text style={styles.sectionTitle}>Bloc note (démo)</Text>
-        <Text style={styles.sectionDescription}>
-          Gardez les idées clés de votre lancement produit. Les entrées sont enregistrées dans Firestore en direct.
-        </Text>
-        <View style={styles.inputContainer}>
-          <TextInput
-            style={styles.input}
-            placeholder="Référence, action marketing, todo..."
-            value={text}
-            onChangeText={setText}
-          />
-          <Button title={savingNote ? '...' : 'Ajouter'} onPress={addItem} />
-        </View>
-        {loadingNotes ? (
-          <ActivityIndicator size="small" color="#1E3A8A" style={styles.inlineLoader} />
-        ) : (
-          <FlatList
-            data={items}
-            keyExtractor={(item) => item.id}
-            renderItem={({ item }) => (
-              <View style={styles.item}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.itemText}>{item.text}</Text>
-                  {item.createdAt && (
-                    <Text style={styles.itemDate}>
-                      {new Date(item.createdAt).toLocaleString('fr-FR', {
-                        day: '2-digit',
-                        month: 'short',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
-                    </Text>
-                  )}
-                </View>
-                <TouchableOpacity style={styles.deleteButton} onPress={() => deleteItem(item.id)}>
-                  <Text style={styles.deleteButtonText}>Supprimer</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-            scrollEnabled={false}
-            ListEmptyComponent={<Text style={styles.emptyText}>Aucun élément pour le moment.</Text>}
-          />
-        )}
-      </Animated.View>
+      
       </Animated.ScrollView>
     </SafeAreaView>
   );
@@ -480,63 +509,104 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 4,
     borderRadius: 999,
-    fontWeight: '600',
-    fontSize: 12,
+    fontWeight: '700',
     letterSpacing: 1,
   },
   heroTitle: {
-    fontSize: 30,
+    color: '#FFFFFF',
+    fontSize: 28,
     fontWeight: '800',
-    color: '#fff',
-    lineHeight: 36,
   },
   heroSubtitle: {
-    fontSize: 16,
-    lineHeight: 24,
-    color: 'rgba(255,255,255,0.9)',
+    color: 'rgba(241,245,249,0.85)',
+    fontSize: 15,
+    lineHeight: 22,
   },
   heroActions: {
     flexDirection: 'row',
-    gap: 12,
     flexWrap: 'wrap',
+    gap: 12,
   },
   heroPrimary: {
-    backgroundColor: '#F59E0B',
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FACC15',
     paddingVertical: 12,
-    paddingHorizontal: 20,
+    paddingHorizontal: 18,
     borderRadius: 999,
   },
   heroPrimaryText: {
-    color: '#1E293B',
+    color: '#0F172A',
     fontWeight: '700',
-    fontSize: 15,
+    fontSize: 14,
+    marginLeft: 8,
   },
   heroSecondary: {
+    flexDirection: 'row',
+    alignItems: 'center',
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.6)',
+    borderColor: 'rgba(248,250,252,0.4)',
     paddingVertical: 12,
-    paddingHorizontal: 20,
+    paddingHorizontal: 18,
   },
   heroSecondaryText: {
-    color: '#fff',
+    color: '#F8FAFC',
     fontWeight: '600',
-    fontSize: 15,
+    fontSize: 14,
+    marginLeft: 8,
   },
-  userActions: {
-    flexDirection: 'row',
+  menuOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15,23,42,0.55)',
+    justifyContent: 'flex-start',
+    paddingHorizontal: 20,
+    paddingTop: 80,
+  },
+  menuBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 1,
+  },
+  menuSheet: {
+    borderRadius: 24,
+    backgroundColor: '#F8FAFC',
+    paddingHorizontal: 20,
+    paddingVertical: 22,
+    alignSelf: 'stretch',
     gap: 10,
-    marginTop: 12,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.22,
+    shadowRadius: 24,
+    elevation: 12,
+    zIndex: 2,
   },
-  userButton: {
-    backgroundColor: 'rgba(255,255,255,0.9)',
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 999,
-  },
-  userButtonText: {
-    color: '#1E3A8A',
+  menuTitle: {
+    fontSize: 16,
     fontWeight: '700',
+    color: '#0F172A',
+    marginBottom: 12,
+  },
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 16,
+    backgroundColor: 'rgba(148,163,184,0.16)',
+    marginBottom: 10,
+  },
+  menuItemDanger: {
+    backgroundColor: 'rgba(248,113,113,0.16)',
+  },
+  menuItemText: {
+    marginLeft: 12,
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#0F172A',
+  },
+  menuItemTextDanger: {
+    color: '#DC2626',
   },
   section: {
     backgroundColor: '#fff',

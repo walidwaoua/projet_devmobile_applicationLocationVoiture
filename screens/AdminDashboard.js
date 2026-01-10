@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
@@ -12,6 +12,39 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { listenToCollection } from '../src/services/firestore';
+
+const STATUS_PENDING = 'Pending';
+const STATUS_ACTIVE = 'Active';
+const STATUS_COMPLETED = 'Completed';
+
+const normalizeStatus = (status) => {
+  const value = String(status || '')
+    .trim()
+    .toLowerCase();
+
+  if (
+    ['active', 'en cours', 'confirmée', 'confirmee', 'approved', 'confirmé', 'confirme'].includes(value)
+  ) {
+    return STATUS_ACTIVE;
+  }
+
+  if (
+    [
+      'completed',
+      'clôturée',
+      'cloturee',
+      'terminée',
+      'terminee',
+      'returned',
+      'done',
+      'archived',
+    ].includes(value)
+  ) {
+    return STATUS_COMPLETED;
+  }
+
+  return STATUS_PENDING;
+};
 
 const METRIC_META = [
   { key: 'cars', label: 'Véhicules', icon: 'car-multiple', accent: '#60A5FA' },
@@ -58,7 +91,9 @@ const ACTION_META = [
 const AnimatedTouchable = Animated.createAnimatedComponent(TouchableOpacity);
 
 const AdminDashboard = ({ navigation }) => {
-  const [metrics, setMetrics] = useState({ cars: 0, rentals: 0, pending: 0, users: 0 });
+  const [cars, setCars] = useState([]);
+  const [reservations, setReservations] = useState([]);
+  const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const heroAnim = useRef(new Animated.Value(0)).current;
@@ -74,60 +109,117 @@ const AdminDashboard = ({ navigation }) => {
   ).current;
 
   useEffect(() => {
-    let completed = 0;
+    let isActive = true;
+    let carsLoaded = false;
+    let reservationsLoaded = false;
+    let employeesLoaded = false;
+
+    setLoading(true);
+
+    const completeIfReady = () => {
+      if (!isActive || !carsLoaded || !reservationsLoaded || !employeesLoaded) {
+        return;
+      }
+
+      setLoading(false);
+    };
 
     const stopCars = listenToCollection({
       collectionName: 'cars',
+      orderByField: 'model',
       onData: (data) => {
-        setMetrics((prev) => ({ ...prev, cars: data.length }));
-        completed += 1;
-        setLoading(completed < 3);
+        if (!isActive) {
+          return;
+        }
+
+        setCars(data);
+        carsLoaded = true;
+        completeIfReady();
       },
       onError: (error) => {
         console.error('Erreur métriques voitures:', error);
-        completed += 1;
-        setLoading(completed < 3);
+        if (!isActive) {
+          return;
+        }
+
+        setCars([]);
+        carsLoaded = true;
+        completeIfReady();
       },
     });
 
-    const stopRentals = listenToCollection({
-      collectionName: 'rentals',
+    const stopReservations = listenToCollection({
+      collectionName: 'reservations',
+      orderByField: 'createdAt',
+      orderDirection: 'desc',
       onData: (data) => {
-        setMetrics((prev) => ({
-          ...prev,
-          rentals: data.length,
-          pending: data.filter((item) => item.status === 'Pending').length,
-        }));
-        completed += 1;
-        setLoading(completed < 3);
+        if (!isActive) {
+          return;
+        }
+
+        setReservations(data);
+        reservationsLoaded = true;
+        completeIfReady();
       },
       onError: (error) => {
-        console.error('Erreur métriques locations:', error);
-        completed += 1;
-        setLoading(completed < 3);
+        console.error('Erreur métriques réservations:', error);
+        if (!isActive) {
+          return;
+        }
+
+        setReservations([]);
+        reservationsLoaded = true;
+        completeIfReady();
       },
     });
 
-    const stopUsers = listenToCollection({
-      collectionName: 'users',
+    const stopEmployees = listenToCollection({
+      collectionName: 'employees',
+      orderByField: 'createdAt',
+      orderDirection: 'desc',
       onData: (data) => {
-        setMetrics((prev) => ({ ...prev, users: data.length }));
-        completed += 1;
-        setLoading(completed < 3);
+        if (!isActive) {
+          return;
+        }
+
+        setEmployees(data);
+        employeesLoaded = true;
+        completeIfReady();
       },
       onError: (error) => {
-        console.error('Erreur métriques utilisateurs:', error);
-        completed += 1;
-        setLoading(completed < 3);
+        console.error('Erreur métriques collaborateurs:', error);
+        if (!isActive) {
+          return;
+        }
+
+        setEmployees([]);
+        employeesLoaded = true;
+        completeIfReady();
       },
     });
 
     return () => {
+      isActive = false;
       stopCars?.();
-      stopRentals?.();
-      stopUsers?.();
+      stopReservations?.();
+      stopEmployees?.();
     };
   }, []);
+
+  const metrics = useMemo(() => {
+    const totalCars = cars.length;
+    const totalReservations = reservations.length;
+    const normalizedStatuses = reservations.map((item) => normalizeStatus(item.status));
+    const pendingReservations = normalizedStatuses.filter((status) => status === STATUS_PENDING).length;
+    const totalEmployees = employees.length;
+
+    return {
+      cars: totalCars,
+      rentals: totalReservations,
+      pending: pendingReservations,
+      users: totalEmployees,
+    };
+  }, [cars, reservations, employees]);
 
   const handleLogout = () => {
     navigation.reset({

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
@@ -9,9 +9,13 @@ import {
   StyleSheet,
   Text,
   View,
+  useWindowDimensions,
 } from 'react-native';
-import { listenToCollection } from '../services/firestore';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+
+import { auth } from '../../firebase';
+import { listenToCollection } from '../services/firestore';
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 const CATEGORIES = [
@@ -31,11 +35,15 @@ const normalizeCategory = (value) => {
   return String(value).trim().toLowerCase();
 };
 
-const CatalogScreen = ({ navigation, onReserve }) => {
+const CatalogScreen = ({ navigation }) => {
   const onLoginPress = () => navigation.navigate('Login');
   const [activeCategory, setActiveCategory] = useState(CATEGORIES[0].id);
   const [cars, setCars] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [processingCarId, setProcessingCarId] = useState(null);
+  const { width } = useWindowDimensions();
+  const isCompact = width < 768;
+  const isUltraCompact = width < 420;
   const heroOpacity = useRef(new Animated.Value(0)).current;
   const heroTranslate = useRef(new Animated.Value(32)).current;
   const listOpacity = useRef(new Animated.Value(0)).current;
@@ -123,9 +131,9 @@ const CatalogScreen = ({ navigation, onReserve }) => {
     }).start();
   }, [filteredCars, listOpacity]);
 
-  const buildChipStyle = (id) => {
+  const buildChipStyle = (id, extraStyle) => {
     const value = chipAnimations.current[id];
-    return [
+    const animatedStyle = [
       styles.categoryChip,
       {
         transform: [
@@ -160,6 +168,10 @@ const CatalogScreen = ({ navigation, onReserve }) => {
         }),
       },
     ];
+    if (extraStyle) {
+      animatedStyle.push(extraStyle);
+    }
+    return animatedStyle;
   };
 
   const animatedHeroStyle = {
@@ -181,11 +193,56 @@ const CatalogScreen = ({ navigation, onReserve }) => {
     return cardAnimations.current[id];
   };
 
+  const handleReservePress = useCallback(
+    async (car) => {
+      const payload = {
+        id: car.id,
+        model: car.model,
+        category: car.category,
+        dailyPrice: car.dailyPrice,
+        description: car.description,
+        image: car.image,
+        year: car.year,
+        seats: car.seats,
+        transmission: car.transmission,
+        fuel: car.fuel,
+      };
+
+      setProcessingCarId(car.id);
+      try {
+        const currentUser = auth.currentUser;
+        if (currentUser) {
+          navigation.navigate('Reservation', { car: payload });
+          return;
+        }
+
+        const stored = await AsyncStorage.getItem('localUser');
+        const session = stored ? JSON.parse(stored) : null;
+        if (session?.role === 'utilisateur') {
+          navigation.navigate('Reservation', { car: payload });
+          return;
+        }
+      } catch (error) {
+        console.error('Erreur contrôle session réservation:', error);
+      } finally {
+        setProcessingCarId(null);
+      }
+
+      navigation.navigate('Login', {
+        redirectTo: 'Reservation',
+        redirectParams: { car: payload },
+      });
+    },
+    [navigation]
+  );
+
   const renderCar = ({ item }) => {
     const cardAnim = getCardValue(item.id);
 
     const cardStyle = [
       styles.card,
+      (isCompact || isUltraCompact) && styles.cardCompact,
+      isUltraCompact && styles.cardUltraCompact,
       {
         opacity: cardAnim,
         transform: [
@@ -201,16 +258,24 @@ const CatalogScreen = ({ navigation, onReserve }) => {
 
     return (
       <Animated.View style={cardStyle}>
-        <View style={styles.cardHeader}>
-          <Text style={styles.cardTitle}>{item.model || 'Modèle non renseigné'}</Text>
-          <View style={styles.tag}>
-            <Text style={styles.tagText}>{(item.category || 'Standard').toUpperCase()}</Text>
+        <View style={[styles.cardHeader, (isCompact || isUltraCompact) && styles.cardHeaderCompact]}>
+          <Text
+            style={[styles.cardTitle, (isCompact || isUltraCompact) && styles.cardTitleCompact]}
+          >
+            {item.model || 'Modèle non renseigné'}
+          </Text>
+          <View style={[styles.tag, (isCompact || isUltraCompact) && styles.tagCompact]}>
+            <Text style={[styles.tagText, (isCompact || isUltraCompact) && styles.tagTextCompact]}>
+              {(item.category || 'Standard').toUpperCase()}
+            </Text>
           </View>
         </View>
-        <View style={styles.cardMeta}>
+        <View style={[styles.cardMeta, (isCompact || isUltraCompact) && styles.cardMetaCompact]}>
           <View style={styles.metaItem}>
             <MaterialCommunityIcons name="calendar" size={18} color="#1E3A8A" />
-            <Text style={styles.metaText}>{item.year || 'Année ?'}</Text>
+            <Text style={[styles.metaText, (isCompact || isUltraCompact) && styles.metaTextCompact]}>
+              {item.year || 'Année ?'}
+            </Text>
           </View>
           <View style={styles.metaItem}>
             <MaterialCommunityIcons
@@ -218,27 +283,55 @@ const CatalogScreen = ({ navigation, onReserve }) => {
               size={18}
               color={item.available ? '#16A34A' : '#DC2626'}
             />
-            <Text style={[styles.metaText, item.available ? styles.available : styles.unavailable]}>
+            <Text
+              style={[
+                styles.metaText,
+                (isCompact || isUltraCompact) && styles.metaTextCompact,
+                item.available ? styles.available : styles.unavailable,
+              ]}
+            >
               {item.available ? 'Disponible' : 'En préparation'}
             </Text>
           </View>
         </View>
-        <Text style={styles.cardDescription} numberOfLines={3}>
+        <Text
+          style={[styles.cardDescription, (isCompact || isUltraCompact) && styles.cardDescriptionCompact]}
+          numberOfLines={3}
+        >
           {item.description || 'Ajoutez une description pour mettre en avant ce véhicule.'}
         </Text>
-        <View style={styles.cardFooter}>
+        <View style={[styles.cardFooter, (isCompact || isUltraCompact) && styles.cardFooterCompact]}>
           <View>
             {item.dailyPrice ? (
-              <Text style={styles.price}>€{Number(item.dailyPrice).toFixed(2)} / jour</Text>
+              <Text style={[styles.price, (isCompact || isUltraCompact) && styles.priceCompact]}>
+                €{Number(item.dailyPrice).toFixed(2)} / jour
+              </Text>
             ) : (
-              <Text style={styles.pricePlaceholder}>Ajoutez un tarif journalier</Text>
+              <Text
+                style={[styles.pricePlaceholder, (isCompact || isUltraCompact) && styles.pricePlaceholderCompact]}
+              >
+                Ajoutez un tarif journalier
+              </Text>
             )}
-            <TouchableOpacity style={styles.loginLink} onPress={onLoginPress}>
-              <Text style={styles.loginLinkText}>Connexion agence</Text>
+            <TouchableOpacity
+              style={[styles.loginLink, (isCompact || isUltraCompact) && styles.loginLinkCompact]}
+              onPress={onLoginPress}
+            >
+              <Text
+                style={[styles.loginLinkText, (isCompact || isUltraCompact) && styles.loginLinkTextCompact]}
+              >
+                Connexion agence
+              </Text>
             </TouchableOpacity>
           </View>
-          <TouchableOpacity style={styles.reserveButton} onPress={() => onReserve?.(item)}>
-            <Text style={styles.reserveButtonText}>Réserver</Text>
+          <TouchableOpacity
+            style={[styles.reserveButton, (isCompact || isUltraCompact) && styles.reserveButtonCompact]}
+            onPress={() => handleReservePress(item)}
+            disabled={processingCarId === item.id}
+          >
+            <Text style={[styles.reserveButtonText, (isCompact || isUltraCompact) && styles.reserveButtonTextCompact]}>
+              {processingCarId === item.id ? 'Connexion...' : 'Réserver'}
+            </Text>
           </TouchableOpacity>
         </View>
       </Animated.View>
@@ -246,10 +339,37 @@ const CatalogScreen = ({ navigation, onReserve }) => {
   };
 
   return (
-    <View style={styles.container}>
-      <Animated.View style={[styles.hero, animatedHeroStyle]}>
-        <Text style={styles.headline}>Explorez notre flotte à la demande</Text>
-        <Text style={styles.subtitle}>
+    <View
+      style={[
+        styles.container,
+        (isCompact || isUltraCompact) && styles.containerCompact,
+        isUltraCompact && styles.containerUltraCompact,
+      ]}
+    >
+      <Animated.View
+        style={[
+          styles.hero,
+          animatedHeroStyle,
+          (isCompact || isUltraCompact) && styles.heroCompact,
+          isUltraCompact && styles.heroUltraCompact,
+        ]}
+      >
+        <Text
+          style={[
+            styles.headline,
+            (isCompact || isUltraCompact) && styles.headlineCompact,
+            isUltraCompact && styles.headlineUltraCompact,
+          ]}
+        >
+          Explorez notre flotte à la demande
+        </Text>
+        <Text
+          style={[
+            styles.subtitle,
+            (isCompact || isUltraCompact) && styles.subtitleCompact,
+            isUltraCompact && styles.subtitleUltraCompact,
+          ]}
+        >
           Filtrez par catégorie pour trouver rapidement les véhicules adaptés à vos clients.
         </Text>
       </Animated.View>
@@ -259,24 +379,48 @@ const CatalogScreen = ({ navigation, onReserve }) => {
         keyExtractor={(item) => item.id}
         horizontal
         showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.categories}
-        ItemSeparatorComponent={() => <View style={{ width: 10 }} />}
+        contentContainerStyle={[
+          styles.categories,
+          (isCompact || isUltraCompact) && styles.categoriesCompact,
+          isUltraCompact && styles.categoriesUltraCompact,
+        ]}
+        ItemSeparatorComponent={() => (
+          <View style={{ width: isUltraCompact ? 6 : isCompact ? 8 : 10 }} />
+        )}
         renderItem={({ item }) => {
           const isActive = item.id === activeCategory;
-          const chipStyle = buildChipStyle(item.id);
+          const chipStyle = buildChipStyle(
+            item.id,
+            (isCompact || isUltraCompact) && styles.categoryChipCompact
+          );
           return (
             <AnimatedPressable
               onPress={() => setActiveCategory(item.id)}
               style={chipStyle}
             >
-              <View style={[styles.categoryIconWrap, isActive && styles.categoryIconWrapActive]}>
+              <View
+                style={[
+                  styles.categoryIconWrap,
+                  (isCompact || isUltraCompact) && styles.categoryIconWrapCompact,
+                  isActive && styles.categoryIconWrapActive,
+                ]}
+              >
                 <MaterialCommunityIcons
                   name={item.icon}
-                  size={16}
+                  size={isUltraCompact ? 14 : 16}
                   color={isActive ? '#60A5FA' : '#CBD5F5'}
                 />
               </View>
-              <Text style={[styles.categoryText, isActive && styles.categoryTextActive]}>{item.label}</Text>
+              <Text
+                style={[
+                  styles.categoryText,
+                  (isCompact || isUltraCompact) && styles.categoryTextCompact,
+                  isUltraCompact && styles.categoryTextUltraCompact,
+                  isActive && styles.categoryTextActive,
+                ]}
+              >
+                {item.label}
+              </Text>
             </AnimatedPressable>
           );
         }}
@@ -298,7 +442,11 @@ const CatalogScreen = ({ navigation, onReserve }) => {
           data={filteredCars}
           keyExtractor={(item) => item.id}
           renderItem={renderCar}
-          contentContainerStyle={styles.list}
+          contentContainerStyle={[
+            styles.list,
+            (isCompact || isUltraCompact) && styles.listCompact,
+            isUltraCompact && styles.listUltraCompact,
+          ]}
           showsVerticalScrollIndicator={false}
         />
       )}
@@ -314,6 +462,15 @@ const styles = StyleSheet.create({
     paddingBottom: 28,
     gap: 16,
   },
+  containerCompact: {
+    paddingHorizontal: 16,
+    gap: 14,
+  },
+  containerUltraCompact: {
+    paddingHorizontal: 12,
+    paddingBottom: 18,
+    gap: 12,
+  },
   hero: {
     gap: 8,
     borderRadius: 18,
@@ -322,18 +479,46 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(148,163,184,0.25)',
   },
+  heroCompact: {
+    padding: 14,
+    borderRadius: 16,
+  },
+  heroUltraCompact: {
+    padding: 12,
+  },
   headline: {
     fontSize: 24,
     fontWeight: '800',
     color: '#F8FAFC',
+  },
+  headlineCompact: {
+    fontSize: 22,
+  },
+  headlineUltraCompact: {
+    fontSize: 20,
+    lineHeight: 26,
   },
   subtitle: {
     color: '#CBD5F5',
     fontSize: 14,
     lineHeight: 20,
   },
+  subtitleCompact: {
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  subtitleUltraCompact: {
+    fontSize: 12,
+    lineHeight: 17,
+  },
   categories: {
     paddingVertical: 10,
+  },
+  categoriesCompact: {
+    paddingVertical: 8,
+  },
+  categoriesUltraCompact: {
+    paddingVertical: 6,
   },
   categoryChip: {
     width: 88,
@@ -348,6 +533,12 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(148,163,184,0.35)',
     overflow: 'hidden',
   },
+  categoryChipCompact: {
+    width: 74,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 5,
+  },
   categoryIconWrap: {
     width: 34,
     height: 34,
@@ -357,6 +548,11 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(15,23,42,0.6)',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  categoryIconWrapCompact: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
   },
   categoryIconWrapActive: {
     borderColor: 'rgba(96,165,250,0.9)',
@@ -369,6 +565,14 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     textTransform: 'uppercase',
     lineHeight: 14,
+  },
+  categoryTextCompact: {
+    fontSize: 10,
+    lineHeight: 13,
+  },
+  categoryTextUltraCompact: {
+    fontSize: 9,
+    lineHeight: 12,
   },
   categoryTextActive: {
     color: '#60A5FA',
@@ -401,6 +605,14 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     gap: 18,
   },
+  listCompact: {
+    paddingVertical: 8,
+    gap: 16,
+  },
+  listUltraCompact: {
+    paddingVertical: 6,
+    gap: 14,
+  },
   card: {
     backgroundColor: '#111827',
     borderRadius: 20,
@@ -412,10 +624,23 @@ const styles = StyleSheet.create({
     shadowRadius: 18,
     elevation: 8,
   },
+  cardCompact: {
+    borderRadius: 18,
+    padding: 18,
+    gap: 12,
+  },
+  cardUltraCompact: {
+    borderRadius: 16,
+    padding: 16,
+    gap: 11,
+  },
   cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+  },
+  cardHeaderCompact: {
+    alignItems: 'flex-start',
   },
   cardTitle: {
     color: '#F8FAFC',
@@ -424,21 +649,36 @@ const styles = StyleSheet.create({
     flex: 1,
     marginRight: 12,
   },
+  cardTitleCompact: {
+    fontSize: 18,
+    marginRight: 8,
+  },
   tag: {
     backgroundColor: '#1E3A8A',
     borderRadius: 999,
     paddingHorizontal: 12,
     paddingVertical: 4,
   },
+  tagCompact: {
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+  },
   tagText: {
     color: '#fff',
     fontSize: 12,
     fontWeight: '600',
   },
+  tagTextCompact: {
+    fontSize: 11,
+  },
   cardMeta: {
     flexDirection: 'row',
     gap: 16,
     alignItems: 'center',
+  },
+  cardMetaCompact: {
+    flexWrap: 'wrap',
+    gap: 12,
   },
   metaItem: {
     flexDirection: 'row',
@@ -448,6 +688,9 @@ const styles = StyleSheet.create({
   metaText: {
     color: '#E2E8F0',
     fontSize: 14,
+  },
+  metaTextCompact: {
+    fontSize: 13,
   },
   available: {
     color: '#34D399',
@@ -460,29 +703,50 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
   },
+  cardDescriptionCompact: {
+    fontSize: 13,
+    lineHeight: 18,
+  },
   cardFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-end',
     gap: 16,
   },
+  cardFooterCompact: {
+    flexDirection: 'column',
+    alignItems: 'stretch',
+    gap: 12,
+  },
   price: {
     color: '#F59E0B',
     fontWeight: '700',
     fontSize: 18,
   },
+  priceCompact: {
+    fontSize: 17,
+  },
   pricePlaceholder: {
     color: '#94A3B8',
     fontSize: 14,
   },
+  pricePlaceholderCompact: {
+    fontSize: 13,
+  },
   loginLink: {
     marginTop: 6,
+  },
+  loginLinkCompact: {
+    marginTop: 4,
   },
   loginLinkText: {
     color: '#60A5FA',
     fontSize: 13,
     fontWeight: '600',
     textTransform: 'uppercase',
+  },
+  loginLinkTextCompact: {
+    fontSize: 12,
   },
   reserveButton: {
     backgroundColor: '#F59E0B',
@@ -495,11 +759,19 @@ const styles = StyleSheet.create({
     shadowRadius: 16,
     elevation: 8,
   },
+  reserveButtonCompact: {
+    paddingVertical: 11,
+    paddingHorizontal: 20,
+    alignSelf: 'stretch',
+  },
   reserveButtonText: {
     color: '#0F172A',
     fontWeight: '700',
     fontSize: 15,
     textTransform: 'uppercase',
+  },
+  reserveButtonTextCompact: {
+    fontSize: 14,
   },
 });
 
