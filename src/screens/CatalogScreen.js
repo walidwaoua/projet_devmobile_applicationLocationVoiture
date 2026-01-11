@@ -385,7 +385,7 @@ const CatalogScreen = ({ navigation }) => {
           isUltraCompact && styles.categoriesUltraCompact,
         ]}
         ItemSeparatorComponent={() => (
-          <View style={{ width: isUltraCompact ? 6 : isCompact ? 8 : 10 }} />
+          <View style={{ width: isUltraCompact ? 8 : isCompact ? 10 : 12 }} />
         )}
         renderItem={({ item }) => {
           const isActive = item.id === activeCategory;
@@ -512,47 +512,53 @@ const styles = StyleSheet.create({
     lineHeight: 17,
   },
   categories: {
-    paddingVertical: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 4,
   },
   categoriesCompact: {
-    paddingVertical: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 4,
   },
   categoriesUltraCompact: {
-    paddingVertical: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 4,
   },
   categoryChip: {
-    width: 88,
-    flexDirection: 'column',
+    flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    borderRadius: 999,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    justifyContent: 'center',
+    gap: 8,
+    borderRadius: 24,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
     backgroundColor: 'rgba(15,23,42,0.38)',
     borderWidth: 1,
     borderColor: 'rgba(148,163,184,0.35)',
     overflow: 'hidden',
+    height: 44,
   },
   categoryChipCompact: {
-    width: 74,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    gap: 5,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    gap: 6,
+    borderRadius: 22,
+    height: 40,
   },
   categoryIconWrap: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
     borderWidth: 1,
     borderColor: 'rgba(148,163,184,0.45)',
     backgroundColor: 'rgba(15,23,42,0.6)',
     alignItems: 'center',
     justifyContent: 'center',
+    flexShrink: 0,
   },
   categoryIconWrapCompact: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
   },
   categoryIconWrapActive: {
     borderColor: 'rgba(96,165,250,0.9)',
@@ -561,18 +567,19 @@ const styles = StyleSheet.create({
   categoryText: {
     color: '#E2E8F0',
     fontWeight: '600',
-    fontSize: 11,
+    fontSize: 12,
     textAlign: 'center',
     textTransform: 'uppercase',
-    lineHeight: 14,
+    lineHeight: 16,
+    flexShrink: 0,
   },
   categoryTextCompact: {
-    fontSize: 10,
-    lineHeight: 13,
+    fontSize: 11,
+    lineHeight: 14,
   },
   categoryTextUltraCompact: {
-    fontSize: 9,
-    lineHeight: 12,
+    fontSize: 10,
+    lineHeight: 13,
   },
   categoryTextActive: {
     color: '#60A5FA',
